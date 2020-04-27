@@ -51,8 +51,10 @@ class Camera(
     private var captureRequestBuilder: CaptureRequest.Builder? = null
     private var mediaRecorder: MediaRecorder? = null
     private var recordingVideo = false
+    private var recordingRtmp = false
     private val recordingProfile: CamcorderProfile
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
+    private var rtmpPublisher: RtmpPublisher? = null
 
     // Mirrors camera.dart
     enum class ResolutionPreset {
@@ -81,6 +83,19 @@ class Camera(
         mediaRecorder!!.setOrientationHint(mediaOrientation)
         mediaRecorder!!.prepare()
     }
+
+    @Throws(IOException::class)
+    private fun prepareRtmpPublished(url: String) {
+        if (rtmpPublisher != null) {
+            rtmpPublisher!!.release()
+        }
+        rtmpPublisher = RtmpPublisher(url, dartMessenger, recordingProfile)
+
+        // There's a specific order that mediaRecorder expects. Do not change the order
+        // of these function calls.
+        rtmpPublisher!!.prepare()
+    }
+
 
     @SuppressLint("MissingPermission")
     @Throws(CameraAccessException::class)
@@ -410,6 +425,82 @@ class Camera(
         flutterTexture.release()
         orientationEventListener.disable()
     }
+
+    fun startStreaming(url: String?, result: MethodChannel.Result) {
+        if (url == null) {
+            result.error("fileExists", "Must specify a url.", null)
+            return
+        }
+        try {
+            prepareRtmpPublished(url!!)
+            recordingRtmp = true
+            createCaptureSession(
+                    CameraDevice.TEMPLATE_RECORD, Runnable { rtmpPublisher!!.start() }, rtmpPublisher!!.surface)
+            result.success(null)
+        } catch (e: CameraAccessException) {
+            result.error("videoRecordingFailed", e.message, null)
+        } catch (e: IOException) {
+            result.error("videoRecordingFailed", e.message, null)
+        }
+    }
+
+    fun stopVideoStreaming(result: MethodChannel.Result) {
+        if (!recordingRtmp) {
+            result.success(null)
+            return
+        }
+        try {
+            recordingRtmp = false
+            rtmpPublisher!!.stop()
+            rtmpPublisher!!.reset()
+            startPreview()
+            result.success(null)
+        } catch (e: CameraAccessException) {
+            result.error("videoStreamingFailed", e.message, null)
+        } catch (e: IllegalStateException) {
+            result.error("videoStreamingFailed", e.message, null)
+        }
+    }
+
+    fun pauseVideoStreaming(result: MethodChannel.Result) {
+        if (!recordingRtmp) {
+            result.success(null)
+            return
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                rtmpPublisher!!.pause()
+            } else {
+                result.error("videoStreamingFailed", "pauseVideoStreaming requires Android API +24.", null)
+                return
+            }
+        } catch (e: IllegalStateException) {
+            result.error("videoStreamingFailed", e.message, null)
+            return
+        }
+        result.success(null)
+    }
+
+    fun resumeVideoStreaming(result: MethodChannel.Result) {
+        if (!recordingRtmp) {
+            result.success(null)
+            return
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                rtmpPublisher!!.resume()
+            } else {
+                result.error(
+                        "videoStreamingFailed", "resumeVideoStreaming requires Android API +24.", null)
+                return
+            }
+        } catch (e: IllegalStateException) {
+            result.error("videoStreamingFailed", e.message, null)
+            return
+        }
+        result.success(null)
+    }
+
 
     private val mediaOrientation: Int
         private get() {

@@ -20,6 +20,7 @@ internal class MethodCallHandlerImpl(
     private val methodChannel: MethodChannel
     private val imageStreamChannel: EventChannel
     private var camera: Camera? = null
+
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
@@ -62,7 +63,16 @@ internal class MethodCallHandlerImpl(
                 camera!!.startVideoRecording(call.argument("filePath")!!, result)
             }
             "startStreaming" -> {
-                camera!!.startStreaming()
+                camera!!.startStreaming(call.argument("url"), result)
+            }
+            "pauseStreaming" -> {
+                camera!!.pauseVideoStreaming(result)
+            }
+            "resumeStreaming" -> {
+                camera!!.resumeVideoStreaming(result)
+            }
+            "stopStreaming" -> {
+                camera!!.stopVideoStreaming(result)
             }
             "stopVideoRecording" -> {
                 camera!!.stopVideoRecording(result)
