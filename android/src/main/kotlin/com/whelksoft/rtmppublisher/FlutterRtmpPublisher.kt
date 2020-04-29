@@ -2,33 +2,34 @@ package com.whelksoft.rtmppublisher
 
 import android.graphics.ImageFormat
 import android.graphics.Rect
-import android.graphics.SurfaceTexture
 import android.media.CamcorderProfile
 import android.media.ImageReader
 import android.os.Build
 import android.os.Process
 import android.view.Surface
 import androidx.annotation.RequiresApi
-import com.github.faucamp.simplertmp.RtmpHandler
-import net.ossrs.yasea.SrsEncodeHandler
-import net.ossrs.yasea.SrsEncoder
-import net.ossrs.yasea.SrsFlvMuxer
+import com.github.faucamp.simplertmp.DefaultRtmpPublisher
+import com.github.faucamp.simplertmp.RtmpPublisher
+import net.ossrs.rtmp.ConnectCheckerRtmp
+import com.whelksoft.yasea.SrsEncodeHandler
+import com.whelksoft.yasea.SrsEncoder
+import com.whelksoft.yasea.SrsFlvMuxer
 import java.io.IOException
 import java.net.SocketException
 
 
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-class RtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProfile: CamcorderProfile) : RtmpHandler.RtmpListener, SrsEncodeHandler.SrsEncodeListener {
+class RtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProfile: CamcorderProfile) : ConnectCheckerRtmp, SrsEncodeHandler.SrsEncodeListener {
     private var worker: Thread? = null
     private var srsEncoder: SrsEncoder
     private var flvMuxer: SrsFlvMuxer
-    private var rtmpHandler: RtmpHandler
+    private var rtmpHandler: com.github.faucamp.simplertmp.RtmpPublisher
     private var rtmpImageReader: ImageReader
     private val mPcmBuffer = ByteArray(4096)
     var surface: Surface
 
     init {
-        rtmpHandler = RtmpHandler(this)
+        rtmpHandler = DefaultRtmpPublisher(this)
         flvMuxer = SrsFlvMuxer(rtmpHandler)
         srsEncoder = SrsEncoder(SrsEncodeHandler(this))
         srsEncoder.setFlvMuxer(flvMuxer)
@@ -75,15 +76,15 @@ class RtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProf
 
     fun release() {
         if (worker != null) {
-            worker!!.interrupt();
+            worker!!.interrupt()
             try {
-                worker!!.join();
+                worker!!.join()
             } catch (e: InterruptedException) {
-                worker!!.interrupt();
+                worker!!.interrupt()
             }
-            worker = null;
+            worker = null
         }
-        srsEncoder.stop();
+        srsEncoder.stop()
         flvMuxer.stop()
     }
 
