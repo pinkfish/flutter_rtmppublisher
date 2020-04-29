@@ -18,6 +18,7 @@ rootProject.allprojects {
     repositories {
         google()
         jcenter()
+        maven { url 'https://jitpack.io' }
     }
 }
 
@@ -42,6 +43,5 @@ dependencies {
     implementation 'androidx.annotation:annotation:1.1.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'flutter:flutter:0.0.7'
-    implementation fileTree(dir: 'libx264.libs', include: ['*.jar'])
-    implementation project(path: ':library')
+    implementation 'com.github.pedroSG94.rtmp-rtsp-stream-client-java:rtplibrary:1.8.2'
 }

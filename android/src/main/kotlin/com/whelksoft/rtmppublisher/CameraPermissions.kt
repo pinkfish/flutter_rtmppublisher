@@ -18,14 +18,14 @@ internal class CameraPermissions {
     private var ongoing = false
     fun requestPermissions(
             activity: Activity,
-            permissionsRegistry: KFunction1<RequestPermissionsResultListener, Unit>,
+            permissionsRegistry: PermissionStuff,
             enableAudio: Boolean,
             callback: ResultCallback) {
         if (ongoing) {
             callback.onResult("cameraPermission", "Camera permission request ongoing")
         }
         if (!hasCameraPermission(activity) || enableAudio && !hasAudioPermission(activity)) {
-            permissionsRegistry(
+            permissionsRegistry.adddListener(
                     CameraRequestPermissionsListener(
                             object : ResultCallback {
                                 override fun onResult(errorCode: String?, errorDescription: String?) {

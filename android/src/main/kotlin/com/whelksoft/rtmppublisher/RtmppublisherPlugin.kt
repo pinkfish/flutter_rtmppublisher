@@ -11,86 +11,98 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
 import io.flutter.plugin.common.PluginRegistry.Registrar
 import io.flutter.view.TextureRegistry
-import kotlin.reflect.KFunction1
 
+interface PermissionStuff {
+    fun adddListener(listener: PluginRegistry.RequestPermissionsResultListener);
+}
 
 /** RtmppublisherPlugin */
-public class RtmppublisherPlugin: FlutterPlugin, ActivityAware {
-  /// The MethodChannel that will the communication between Flutter and native Android
-  ///
-  /// This local reference serves to register the plugin with the Flutter Engine and unregister it
-  /// when the Flutter Engine is detached from the Activity
-  private lateinit var channel : MethodChannel
-  private var methodCallHandler: MethodCallHandlerImpl? = null
-  private  var flutterPluginBinding: FlutterPlugin.FlutterPluginBinding? = null
+public class RtmppublisherPlugin : FlutterPlugin, ActivityAware {
+    /// The MethodChannel that will the communication between Flutter and native Android
+    ///
+    /// This local reference serves to register the plugin with the Flutter Engine and unregister it
+    /// when the Flutter Engine is detached from the Activity
+    private var methodCallHandler: MethodCallHandlerImpl? = null
+    private var flutterPluginBinding: FlutterPlugin.FlutterPluginBinding? = null
 
-  override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-    this.flutterPluginBinding = flutterPluginBinding
-  }
-
-  // This static function is optional and equivalent to onAttachedToEngine. It supports the old
-  // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
-  // plugin registration via this function while apps migrate to use the new Android APIs
-  // post-flutter-1.12 via https://flutter.dev/go/android-project-migration.
-  //
-  // It is encouraged to share logic between onAttachedToEngine and registerWith to keep
-  // them functionally equivalent. Only one of onAttachedToEngine or registerWith will be called
-  // depending on the user's project. onAttachedToEngine or registerWith must both be defined
-  // in the same class.
-  companion object {
-    @JvmStatic
-    fun registerWith(registrar: Registrar) {
-      val channel = MethodChannel(registrar.messenger(), "rtmppublisher")
-      var plugin = RtmppublisherPlugin();
-      plugin.maybeStartListening(
-              registrar.activity(),
-              registrar.messenger(),
-              registrar::addRequestPermissionsResultListener,
-              registrar.view())
-
+    override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+        this.flutterPluginBinding = flutterPluginBinding
     }
-  }
 
+    // This static function is optional and equivalent to onAttachedToEngine. It supports the old
+    // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
+    // plugin registration via this function while apps migrate to use the new Android APIs
+    // post-flutter-1.12 via https://flutter.dev/go/android-project-migration.
+    //
+    // It is encouraged to share logic between onAttachedToEngine and registerWith to keep
+    // them functionally equivalent. Only one of onAttachedToEngine or registerWith will be called
+    // depending on the user's project. onAttachedToEngine or registerWith must both be defined
+    // in the same class.
+    companion object {
+        @JvmStatic
+        fun registerWith(registrar: Registrar) {
+            val channel = MethodChannel(registrar.messenger(), "rtmppublisher")
+            var plugin = RtmppublisherPlugin();
+            plugin.maybeStartListening(
+                    registrar.activity(),
+                    registrar.messenger(),
+                    object : PermissionStuff {
+                        override fun adddListener(listener: PluginRegistry.RequestPermissionsResultListener) {
+                            registrar.addRequestPermissionsResultListener(listener);
+                        }
 
-  override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
-    flutterPluginBinding = null
-  }
+                    },
+                    registrar.view())
 
-  private fun maybeStartListening(
-          activity: Activity,
-          messenger: BinaryMessenger,
-          permissionsRegistry: KFunction1<PluginRegistry.RequestPermissionsResultListener, Unit>,
-          textureRegistry: TextureRegistry) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-      // If the sdk is less than 21 (min sdk for Camera2) we don't register the plugin.
-      return
+        }
     }
-    methodCallHandler = MethodCallHandlerImpl(
-            activity, messenger, CameraPermissions(), permissionsRegistry, textureRegistry)
-  }
 
-  override fun onDetachedFromActivity() {
-if (methodCallHandler == null) {
-  return
-}
-    methodCallHandler!!.stopListening();
-    methodCallHandler = null
-  }
 
-  override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-onAttachedToActivity(binding)
-  }
+    override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+        flutterPluginBinding = null
+    }
 
-  override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-   maybeStartListening(
-           binding.activity,
-           flutterPluginBinding!!.binaryMessenger,
-           binding::addRequestPermissionsResultListener,
-           flutterPluginBinding!!.flutterEngine.renderer
-   )
-  }
+    private fun maybeStartListening(
+            activity: Activity,
+            messenger: BinaryMessenger,
+            permissionsRegistry: PermissionStuff,
+            textureRegistry: TextureRegistry) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            // If the sdk is less than 21 (min sdk for Camera2) we don't register the plugin.
+            return
+        }
+        methodCallHandler = MethodCallHandlerImpl(
+                activity, messenger, CameraPermissions(), permissionsRegistry, textureRegistry)
+    }
 
-  override fun onDetachedFromActivityForConfigChanges() {
-    onDetachedFromActivity()
-  }
+    override fun onDetachedFromActivity() {
+        if (methodCallHandler == null) {
+            return
+        }
+        methodCallHandler!!.stopListening();
+        methodCallHandler = null
+    }
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        onAttachedToActivity(binding)
+    }
+
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        maybeStartListening(
+                binding.activity,
+                flutterPluginBinding!!.binaryMessenger,
+                object : PermissionStuff {
+                    override fun adddListener(listener: PluginRegistry.RequestPermissionsResultListener) {
+                        binding.addRequestPermissionsResultListener(listener);
+                    }
+
+                },
+
+                flutterPluginBinding!!.flutterEngine.renderer
+        )
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() {
+        onDetachedFromActivity()
+    }
 }

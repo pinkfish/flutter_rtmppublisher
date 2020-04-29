@@ -11,28 +11,20 @@ import androidx.annotation.RequiresApi
 import com.github.faucamp.simplertmp.DefaultRtmpPublisher
 import com.github.faucamp.simplertmp.RtmpPublisher
 import net.ossrs.rtmp.ConnectCheckerRtmp
-import com.whelksoft.yasea.SrsEncodeHandler
-import com.whelksoft.yasea.SrsEncoder
-import com.whelksoft.yasea.SrsFlvMuxer
+import net.ossrs.rtmp.SrsFlvMuxer
 import java.io.IOException
-import java.net.SocketException
 
 
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-class RtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProfile: CamcorderProfile) : ConnectCheckerRtmp, SrsEncodeHandler.SrsEncodeListener {
+class FlutterRtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProfile: CamcorderProfile) : ConnectCheckerRtmp, SrsEncodeHandler.SrsEncodeListener {
     private var worker: Thread? = null
-    private var srsEncoder: SrsEncoder
     private var flvMuxer: SrsFlvMuxer
-    private var rtmpHandler: com.github.faucamp.simplertmp.RtmpPublisher
     private var rtmpImageReader: ImageReader
     private val mPcmBuffer = ByteArray(4096)
     var surface: Surface
 
     init {
-        rtmpHandler = DefaultRtmpPublisher(this)
-        flvMuxer = SrsFlvMuxer(rtmpHandler)
-        srsEncoder = SrsEncoder(SrsEncodeHandler(this))
-        srsEncoder.setFlvMuxer(flvMuxer)
+        flvMuxer = SrsFlvMuxer(this)
         rtmpImageReader = ImageReader.newInstance(
                 mediaProfile.videoFrameWidth, mediaProfile.videoFrameHeight, ImageFormat.YUV_420_888, 2)
         surface = rtmpImageReader.surface
@@ -40,10 +32,12 @@ class RtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProf
 
 
     fun prepare() {
+        flvMuxer.setVideoResolution(mediaProfile.videoFrameWidth, mediaProfile.videoFrameHeight);
         rtmpImageReader.setOnImageAvailableListener({ reader: ImageReader ->
             try {
                 reader.acquireLatestImage().use { image ->
                     val buffer = image.planes[0].buffer
+                    flvMuxer.sendVideo(buffer, rtmpImageReader.)
                     srsEncoder.onGetYuvNV21Frame(buffer.array(), image.width, image.height, Rect(0, 0, image.width, image.height))
                 }
             } catch (e: IOException) {
@@ -110,48 +104,6 @@ class RtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProf
         srsEncoder.resume()
     }
 
-    override fun onRtmpConnected(msg: String?) {
-        messenger.send(DartMessenger.EventType.RTMP_CONNECTED, "Connected to rtmp")
-    }
-
-    override fun onRtmpIllegalStateException(e: IllegalStateException?) {
-    }
-
-    override fun onRtmpStopped() {
-        messenger.send(DartMessenger.EventType.RTMP_STOPPED, "RTMP stopped")
-    }
-
-    override fun onRtmpIOException(e: IOException?) {
-        messenger.send(DartMessenger.EventType.ERROR, e!!.message)
-    }
-
-    override fun onRtmpAudioStreaming() {
-    }
-
-    override fun onRtmpSocketException(e: SocketException?) {
-        messenger.send(DartMessenger.EventType.ERROR, e!!.message)
-    }
-
-    override fun onRtmpDisconnected() {
-    }
-
-    override fun onRtmpVideoFpsChanged(fps: Double) {
-    }
-
-    override fun onRtmpConnecting(msg: String?) {
-    }
-
-    override fun onRtmpVideoStreaming() {
-    }
-
-    override fun onRtmpAudioBitrateChanged(bitrate: Double) {
-    }
-
-    override fun onRtmpVideoBitrateChanged(bitrate: Double) {
-    }
-
-    override fun onRtmpIllegalArgumentException(e: IllegalArgumentException?) {
-    }
 
     override fun onEncodeIllegalArgumentException(e: IllegalArgumentException?) {
     }
@@ -160,5 +112,27 @@ class RtmpPublisher(var url: String, var messenger: DartMessenger, var mediaProf
     }
 
     override fun onNetworkResume() {
+    }
+
+    override fun onAuthSuccessRtmp() {
+    }
+
+    override fun onNewBitrateRtmp(bitrate: Long) {
+    }
+
+    override fun onConnectionSuccessRtmp() {
+        messenger.send(DartMessenger.EventType.RTMP_CONNECTED, "Connected to rtmp")
+    }
+
+    override fun onConnectionFailedRtmp(reason: String) {
+        messenger.send(DartMessenger.EventType.ERROR, reason)
+    }
+
+    override fun onAuthErrorRtmp() {
+        messenger.send(DartMessenger.EventType.ERROR, "Auth error")
+    }
+
+    override fun onDisconnectRtmp() {
+        messenger.send(DartMessenger.EventType.RTMP_STOPPED, "RTMP stopped")
     }
 }

@@ -54,7 +54,7 @@ class Camera(
     private var recordingRtmp = false
     private val recordingProfile: CamcorderProfile
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
-    private var rtmpPublisher: RtmpPublisher? = null
+    private var rtmpPublisher: FlutterRtmpPublisher? = null
 
     // Mirrors camera.dart
     enum class ResolutionPreset {
@@ -89,7 +89,7 @@ class Camera(
         if (rtmpPublisher != null) {
             rtmpPublisher!!.release()
         }
-        rtmpPublisher = RtmpPublisher(url, dartMessenger, recordingProfile)
+        rtmpPublisher = FlutterRtmpPublisher(url, dartMessenger, recordingProfile)
 
         // There's a specific order that mediaRecorder expects. Do not change the order
         // of these function calls.

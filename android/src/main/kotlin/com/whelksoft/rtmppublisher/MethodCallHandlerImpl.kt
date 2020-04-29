@@ -15,7 +15,7 @@ internal class MethodCallHandlerImpl(
         private val activity: Activity,
         private val messenger: BinaryMessenger,
         private val cameraPermissions: CameraPermissions,
-        private val permissionsRegistry: KFunction1<PluginRegistry.RequestPermissionsResultListener, Unit>,
+        private val permissionsRegistry: PermissionStuff,
         private val textureRegistry: TextureRegistry) : MethodCallHandler {
     private val methodChannel: MethodChannel
     private val imageStreamChannel: EventChannel
