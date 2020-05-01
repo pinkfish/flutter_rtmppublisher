@@ -44,7 +44,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   VideoPlayerController videoController;
   VoidCallback videoPlayerListener;
   bool enableAudio = true;
-  TextEditingController _textFieldController = TextEditingController();
+  TextEditingController _textFieldController = TextEditingController(
+      text: "rtmp://34.70.40.166/LiveApp/815794454132232781694481");
 
   @override
   void initState() {
@@ -458,7 +459,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     }
 
     // Open up a dialog for the url
-    String result;
+    String result = _textFieldController.text;
 
     String myUrl = await showDialog(
         context: context,

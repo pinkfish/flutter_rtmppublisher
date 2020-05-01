@@ -41,8 +41,7 @@ public class RtmppublisherPlugin : FlutterPlugin, ActivityAware {
     companion object {
         @JvmStatic
         fun registerWith(registrar: Registrar) {
-            val channel = MethodChannel(registrar.messenger(), "rtmppublisher")
-            var plugin = RtmppublisherPlugin();
+            val plugin = RtmppublisherPlugin();
             plugin.maybeStartListening(
                     registrar.activity(),
                     registrar.messenger(),

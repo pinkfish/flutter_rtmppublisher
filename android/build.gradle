@@ -37,6 +37,10 @@ android {
     lintOptions {
         disable 'InvalidPackage'
     }
+
+    packagingOptions {
+        exclude 'project.clj'
+    }
 }
 
 dependencies {

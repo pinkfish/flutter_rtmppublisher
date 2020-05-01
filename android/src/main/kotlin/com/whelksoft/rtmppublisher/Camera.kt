@@ -9,6 +9,7 @@ import android.hardware.camera2.*
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
 import android.media.CamcorderProfile
 import android.media.ImageReader
+import android.media.MediaFormat
 import android.media.MediaRecorder
 import android.os.Build
 import android.util.Size
@@ -19,42 +20,39 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.EventChannel.EventSink
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry.SurfaceTextureEntry
+import net.ossrs.rtmp.ConnectCheckerRtmp
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
 
-
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 class Camera(
-        activity: Activity?,
-        flutterTexture: SurfaceTextureEntry,
-        dartMessenger: DartMessenger,
-        cameraName: String,
-        resolutionPreset: String?,
-        enableAudio: Boolean) {
-    val flutterTexture: SurfaceTextureEntry
+        val activity: Activity?,
+        val flutterTexture: SurfaceTextureEntry,
+        val dartMessenger: DartMessenger,
+        val cameraName: String,
+        val resolutionPreset: String?,
+        val enableAudio: Boolean) : ConnectCheckerRtmp {
     private val cameraManager: CameraManager
     private val orientationEventListener: OrientationEventListener
     private val isFrontFacing: Boolean
     private val sensorOrientation: Int
-    private val cameraName: String
     private val captureSize: Size
     private val previewSize: Size
-    private val enableAudio: Boolean
     private var cameraDevice: CameraDevice? = null
     private var cameraCaptureSession: CameraCaptureSession? = null
     private var pictureImageReader: ImageReader? = null
     private var imageStreamReader: ImageReader? = null
-    private val dartMessenger: DartMessenger
+    private var streamingReader: ImageReader? = null
     private var captureRequestBuilder: CaptureRequest.Builder? = null
     private var mediaRecorder: MediaRecorder? = null
     private var recordingVideo = false
     private var recordingRtmp = false
     private val recordingProfile: CamcorderProfile
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
-    private var rtmpPublisher: FlutterRtmpPublisher? = null
+    private var rtmpCamera: RtmpCamera2? = null
 
     // Mirrors camera.dart
     enum class ResolutionPreset {
@@ -86,14 +84,22 @@ class Camera(
 
     @Throws(IOException::class)
     private fun prepareRtmpPublished(url: String) {
-        if (rtmpPublisher != null) {
-            rtmpPublisher!!.release()
+        if (rtmpCamera != null) {
+            rtmpCamera!!.stopPreview()
+            rtmpCamera!!.stopRecord()
+            rtmpCamera!!.stopStream()
+            streamingReader!!.close()
         }
-        rtmpPublisher = FlutterRtmpPublisher(url, dartMessenger, recordingProfile)
+        streamingReader = ImageReader.newInstance(captureSize.width, captureSize.height, ImageFormat.YUV_420_888, 2)
+        rtmpCamera = RtmpCamera2(
+                context = activity!!.applicationContext!!,
+                surface = streamingReader!!.surface,
+                connectChecker = this)
 
         // There's a specific order that mediaRecorder expects. Do not change the order
         // of these function calls.
-        rtmpPublisher!!.prepare()
+        rtmpCamera!!.prepareAudio()
+        rtmpCamera!!.prepareVideo(captureSize.width, captureSize.height, 30, 1200 * 1024, false, currentOrientation)
     }
 
 
@@ -434,8 +440,7 @@ class Camera(
         try {
             prepareRtmpPublished(url!!)
             recordingRtmp = true
-            createCaptureSession(
-                    CameraDevice.TEMPLATE_RECORD, Runnable { rtmpPublisher!!.start() }, rtmpPublisher!!.surface)
+            rtmpCamera!!.startStream(url!!)
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -451,8 +456,7 @@ class Camera(
         }
         try {
             recordingRtmp = false
-            rtmpPublisher!!.stop()
-            rtmpPublisher!!.reset()
+            rtmpCamera!!.stopStream()
             startPreview()
             result.success(null)
         } catch (e: CameraAccessException) {
@@ -469,7 +473,7 @@ class Camera(
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                rtmpPublisher!!.pause()
+                rtmpCamera!!.stopStream()
             } else {
                 result.error("videoStreamingFailed", "pauseVideoStreaming requires Android API +24.", null)
                 return
@@ -488,7 +492,7 @@ class Camera(
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                rtmpPublisher!!.resume()
+                //rtmpCamera!!.startStream(url!!)
             } else {
                 result.error(
                         "videoStreamingFailed", "resumeVideoStreaming requires Android API +24.", null)
@@ -510,10 +514,6 @@ class Camera(
 
     init {
         checkNotNull(activity) { "No activity available!" }
-        this.cameraName = cameraName
-        this.enableAudio = enableAudio
-        this.flutterTexture = flutterTexture
-        this.dartMessenger = dartMessenger
         cameraManager = activity.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         orientationEventListener = object : OrientationEventListener(activity.applicationContext) {
             override fun onOrientationChanged(i: Int) {
@@ -533,5 +533,23 @@ class Camera(
         recordingProfile = CameraUtils.getBestAvailableCamcorderProfileForResolutionPreset(cameraName, preset)
         captureSize = Size(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
         previewSize = CameraUtils.computeBestPreviewSize(cameraName, preset)
+    }
+
+    override fun onAuthSuccessRtmp() {
+    }
+
+    override fun onNewBitrateRtmp(bitrate: Long) {
+    }
+
+    override fun onConnectionSuccessRtmp() {
+    }
+
+    override fun onConnectionFailedRtmp(reason: String) {
+    }
+
+    override fun onAuthErrorRtmp() {
+    }
+
+    override fun onDisconnectRtmp() {
     }
 }

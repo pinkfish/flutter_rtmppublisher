@@ -613,7 +613,7 @@ class CameraController extends ValueNotifier<CameraValue> {
   /// The file can be read as soon as [stopVideoRecording] returns.
   ///
   /// Throws a [CameraException] if the capture fails.
-  Future<void> startVideoStreaming(String filePath) async {
+  Future<void> startVideoStreaming(String url) async {
     if (!value.isInitialized || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
@@ -636,7 +636,7 @@ class CameraController extends ValueNotifier<CameraValue> {
     try {
       await _channel.invokeMethod<void>(
         'startVideoStreaming',
-        <String, dynamic>{'textureId': _textureId, 'filePath': filePath},
+        <String, dynamic>{'textureId': _textureId, 'url': url},
       );
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);

@@ -3,12 +3,12 @@ package com.whelksoft.rtmppublisher
 import android.app.Activity
 import android.hardware.camera2.CameraAccessException
 import android.os.Build
+import io.flutter.Log
 import androidx.annotation.RequiresApi
 import com.whelksoft.rtmppublisher.CameraPermissions.ResultCallback
 import io.flutter.plugin.common.*
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.view.TextureRegistry
-import kotlin.reflect.KFunction1
 
 
 internal class MethodCallHandlerImpl(
@@ -62,7 +62,8 @@ internal class MethodCallHandlerImpl(
             "startVideoRecording" -> {
                 camera!!.startVideoRecording(call.argument("filePath")!!, result)
             }
-            "startStreaming" -> {
+            "startVideoStreaming" -> {
+                Log.i("Stuff", call.arguments.toString())
                 camera!!.startStreaming(call.argument("url"), result)
             }
             "pauseStreaming" -> {
