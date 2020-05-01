@@ -41,11 +41,11 @@ class Camera(
     private val sensorOrientation: Int
     private val captureSize: Size
     private val previewSize: Size
+    private val streamSize: Size
     private var cameraDevice: CameraDevice? = null
     private var cameraCaptureSession: CameraCaptureSession? = null
     private var pictureImageReader: ImageReader? = null
     private var imageStreamReader: ImageReader? = null
-    private var streamingReader: ImageReader? = null
     private var captureRequestBuilder: CaptureRequest.Builder? = null
     private var mediaRecorder: MediaRecorder? = null
     private var recordingVideo = false
@@ -85,21 +85,20 @@ class Camera(
     @Throws(IOException::class)
     private fun prepareRtmpPublished(url: String) {
         if (rtmpCamera != null) {
-            rtmpCamera!!.stopPreview()
-            rtmpCamera!!.stopRecord()
             rtmpCamera!!.stopStream()
-            streamingReader!!.close()
         }
-        streamingReader = ImageReader.newInstance(captureSize.width, captureSize.height, ImageFormat.YUV_420_888, 2)
         rtmpCamera = RtmpCamera2(
                 context = activity!!.applicationContext!!,
-                surface = streamingReader!!.surface,
                 connectChecker = this)
 
-        // There's a specific order that mediaRecorder expects. Do not change the order
-        // of these function calls.
         rtmpCamera!!.prepareAudio()
-        rtmpCamera!!.prepareVideo(captureSize.width, captureSize.height, 30, 1200 * 1024, false, currentOrientation)
+        rtmpCamera!!.prepareVideo(
+                streamSize.width,
+                streamSize.height,
+                recordingProfile.videoFrameRate,
+                1200 * 1024,
+                false,
+                mediaOrientation)
     }
 
 
@@ -438,9 +437,10 @@ class Camera(
             return
         }
         try {
-            prepareRtmpPublished(url!!)
+            prepareRtmpPublished(url)
+            createCaptureSession(
+                    CameraDevice.TEMPLATE_RECORD, Runnable { rtmpCamera!!.startStream(url) }, rtmpCamera!!.inputSurface)
             recordingRtmp = true
-            rtmpCamera!!.startStream(url!!)
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -526,13 +526,13 @@ class Camera(
         }
         orientationEventListener.enable()
         val characteristics = cameraManager.getCameraCharacteristics(cameraName)
-        val streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
         isFrontFacing = characteristics.get(CameraCharacteristics.LENS_FACING) == CameraMetadata.LENS_FACING_FRONT
         val preset = ResolutionPreset.valueOf(resolutionPreset!!)
         recordingProfile = CameraUtils.getBestAvailableCamcorderProfileForResolutionPreset(cameraName, preset)
         captureSize = Size(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
         previewSize = CameraUtils.computeBestPreviewSize(cameraName, preset)
+        streamSize = Size(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
     }
 
     override fun onAuthSuccessRtmp() {

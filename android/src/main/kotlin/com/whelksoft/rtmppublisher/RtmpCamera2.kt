@@ -1,6 +1,7 @@
 package com.whelksoft.rtmppublisher
 
 import android.content.Context
+import android.media.ImageReader
 import android.media.MediaCodec
 import android.os.Build
 import android.view.Surface
@@ -20,30 +21,10 @@ import java.nio.ByteBuffer
  * Created by pedro on 6/07/17.
  */
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class RtmpCamera2 : RtmpCamera2Base {
+class RtmpCamera2(context: Context, val connectChecker: ConnectCheckerRtmp) : RtmpCamera2Base(context = context) {
     private var srsFlvMuxer: SrsFlvMuxer
 
-    constructor(surfaceView: SurfaceView, connectChecker: ConnectCheckerRtmp?) : super(surfaceView) {
-        srsFlvMuxer = SrsFlvMuxer(connectChecker)
-    }
-
-    constructor(context: Context, surface: Surface, connectChecker: ConnectCheckerRtmp?) : super(context, surface) {
-        srsFlvMuxer = SrsFlvMuxer(connectChecker)
-    }
-
-    constructor(textureView: TextureView, connectChecker: ConnectCheckerRtmp?) : super(textureView) {
-        srsFlvMuxer = SrsFlvMuxer(connectChecker)
-    }
-
-    constructor(openGlView: OpenGlView, connectChecker: ConnectCheckerRtmp?) : super(openGlView) {
-        srsFlvMuxer = SrsFlvMuxer(connectChecker)
-    }
-
-    constructor(lightOpenGlView: LightOpenGlView, connectChecker: ConnectCheckerRtmp?) : super(lightOpenGlView) {
-        srsFlvMuxer = SrsFlvMuxer(connectChecker)
-    }
-
-    constructor(context: Context, useOpengl: Boolean, connectChecker: ConnectCheckerRtmp?) : super(context, useOpengl) {
+    init {
         srsFlvMuxer = SrsFlvMuxer(connectChecker)
     }
 
@@ -69,15 +50,17 @@ class RtmpCamera2 : RtmpCamera2Base {
 
 
     override val sentVideoFrames: Long
-       get() = srsFlvMuxer.sentVideoFrames
+        get() = srsFlvMuxer.sentVideoFrames
 
 
-    override val droppedAudioFrames: Long get() =
-         srsFlvMuxer.droppedAudioFrames
+    override val droppedAudioFrames: Long
+        get() =
+            srsFlvMuxer.droppedAudioFrames
 
 
-    override val droppedVideoFrames: Long get() =
-         srsFlvMuxer.droppedVideoFrames
+    override val droppedVideoFrames: Long
+        get() =
+            srsFlvMuxer.droppedVideoFrames
 
 
     override fun resetSentAudioFrames() {
