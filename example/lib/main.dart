@@ -44,8 +44,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   VideoPlayerController videoController;
   VoidCallback videoPlayerListener;
   bool enableAudio = true;
-  TextEditingController _textFieldController = TextEditingController(
-      text: "rtmp://34.70.40.166/LiveApp/815794454132232781694481");
+  TextEditingController _textFieldController =
+      TextEditingController(text: "rtmp://34.70.40.166:1935/LiveApp/rabbit");
 
   @override
   void initState() {

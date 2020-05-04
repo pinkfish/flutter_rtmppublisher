@@ -1,31 +1,97 @@
 package com.whelksoft.rtmppublisher
 
 import android.content.Context
+import android.hardware.camera2.CameraCharacteristics
 import android.media.ImageReader
 import android.media.MediaCodec
+import android.media.MediaFormat
 import android.os.Build
+import android.util.Size
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.TextureView
 import androidx.annotation.RequiresApi
+import com.pedro.encoder.Frame
+import com.pedro.encoder.audio.AudioEncoder
+import com.pedro.encoder.audio.GetAacData
+import com.pedro.encoder.input.audio.CustomAudioEffect
+import com.pedro.encoder.input.audio.GetMicrophoneData
+import com.pedro.encoder.input.audio.MicrophoneManager
+import com.pedro.encoder.input.video.CameraHelper
+import com.pedro.encoder.input.video.CameraHelper.Facing
+import com.pedro.encoder.input.video.CameraOpenException
+import com.pedro.encoder.utils.CodecUtil.Force
+import com.pedro.encoder.video.FormatVideoEncoder
+import com.pedro.encoder.video.GetVideoData
+import com.pedro.encoder.video.VideoEncoder
+import com.pedro.rtplibrary.util.FpsListener
+import com.pedro.rtplibrary.util.RecordController
+import com.pedro.rtplibrary.view.GlInterface
 import com.pedro.rtplibrary.view.LightOpenGlView
+import com.pedro.rtplibrary.view.OffScreenGlThread
 import com.pedro.rtplibrary.view.OpenGlView
 import net.ossrs.rtmp.ConnectCheckerRtmp
 import net.ossrs.rtmp.SrsFlvMuxer
+import java.io.IOException
 import java.nio.ByteBuffer
+import java.util.*
+
 
 /**
- * More documentation see:
- * [com.pedro.rtplibrary.base.Camera2Base]
+ * Wrapper to stream with camera2 api and microphone. Support stream with SurfaceView, TextureView,
+ * OpenGlView(Custom SurfaceView that use OpenGl) and Context(background mode). All views use
+ * Surface to buffer encoding mode for H264.
  *
- * Created by pedro on 6/07/17.
+ * API requirements:
+ * API 21+.
+ *
+ * Created by pedro on 7/07/17.
  */
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class RtmpCamera2(context: Context, val connectChecker: ConnectCheckerRtmp) : RtmpCamera2Base(context = context) {
+ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData {
+    protected val videoEncoder: VideoEncoder
+    private var microphoneManager: MicrophoneManager
+    private var audioEncoder: AudioEncoder
     private var srsFlvMuxer: SrsFlvMuxer
 
+    /**
+     * Get stream state.
+     *
+     * @return true if streaming, false if not streaming.
+     */
+    var isStreaming = false
+        private set
+
+    /**
+     * Get video camera state
+     *
+     * @return true if disabled, false if enabled
+     */
+    var isVideoEnabled = false
+        private set
+
+    private val fpsListener = FpsListener()
+
     init {
+        videoEncoder = VideoEncoder(this)
+        microphoneManager = MicrophoneManager(this)
+        audioEncoder = AudioEncoder(this)
         srsFlvMuxer = SrsFlvMuxer(connectChecker)
+    }
+
+    /**
+     * Set an audio effect modifying microphone's PCM buffer.
+     */
+    fun setCustomAudioEffect(customAudioEffect: CustomAudioEffect?) {
+        microphoneManager.setCustomAudioEffect(customAudioEffect)
+    }
+
+    /**
+     * @param callback get fps while record or stream
+     */
+    fun setFpsListener(callback: FpsListener.Callback?) {
+        fpsListener.setCallback(callback)
     }
 
     /**
@@ -37,58 +103,211 @@ class RtmpCamera2(context: Context, val connectChecker: ConnectCheckerRtmp) : Rt
         srsFlvMuxer.setProfileIop(profileIop)
     }
 
-    @Throws(RuntimeException::class)
-    override fun resizeCache(newSize: Int) {
-        srsFlvMuxer.resizeFlvTagCache(newSize)
+
+
+    val inputSurface: Surface get() = videoEncoder.inputSurface
+
+
+    /**
+     * Call this method before use @startStream. If not you will do a stream without video.
+     *
+     * @param width resolution in px.
+     * @param height resolution in px.
+     * @param fps frames per second of the stream.
+     * @param bitrate H264 in bps.
+     * @param hardwareRotation true if you want rotate using encoder, false if you with OpenGl if you
+     * are using OpenGlView.
+     * @param rotation could be 90, 180, 270 or 0 (Normally 0 if you are streaming in landscape or 90
+     * if you are streaming in Portrait). This only affect to stream result. NOTE: Rotation with
+     * encoder is silence ignored in some devices.
+     * @return true if success, false if you get a error (Normally because the encoder selected
+     * doesn't support any configuration seated or your device hasn't a H264 encoder).
+     */
+    @JvmOverloads
+    fun prepareVideo(width: Int, height: Int, fps: Int, bitrate: Int, hardwareRotation: Boolean,
+                     iFrameInterval: Int, rotation: Int, avcProfile: Int = -1, avcProfileLevel: Int =
+                             -1): Boolean {
+        val result = videoEncoder.prepareVideoEncoder(width, height, fps, bitrate, rotation, hardwareRotation,
+                iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
+        prepareCameraManager()
+        return result
     }
 
-    override val cacheSize: Int
+    /**
+     * backward compatibility reason
+     */
+    fun prepareVideo(width: Int, height: Int, fps: Int, bitrate: Int, hardwareRotation: Boolean,
+                     rotation: Int): Boolean {
+        return prepareVideo(width, height, fps, bitrate, hardwareRotation, 2, rotation)
+    }
+
+    /**
+     * Call this method before use @startStream. If not you will do a stream without audio.
+     *
+     * @param bitrate AAC in kb.
+     * @param sampleRate of audio in hz. Can be 8000, 16000, 22500, 32000, 44100.
+     * @param isStereo true if you want Stereo audio (2 audio channels), false if you want Mono audio
+     * (1 audio channel).
+     * @param echoCanceler true enable echo canceler, false disable.
+     * @param noiseSuppressor true enable noise suppressor, false  disable.
+     * @return true if success, false if you get a error (Normally because the encoder selected
+     * doesn't support any configuration seated or your device hasn't a AAC encoder).
+     */
+    /**
+     * Same to call: prepareAudio(64 * 1024, 32000, true, false, false);
+     *
+     * @return true if success, false if you get a error (Normally because the encoder selected
+     * doesn't support any configuration seated or your device hasn't a AAC encoder).
+     */
+    @JvmOverloads
+    fun prepareAudio(bitrate: Int = 64 * 1024, sampleRate: Int = 32000, isStereo: Boolean = true, echoCanceler: Boolean = false,
+                     noiseSuppressor: Boolean = false): Boolean {
+        microphoneManager!!.createMicrophone(sampleRate, isStereo, echoCanceler, noiseSuppressor)
+        prepareAudioRtp(isStereo, sampleRate)
+        return audioEncoder!!.prepareAudioEncoder(bitrate, sampleRate, isStereo,
+                microphoneManager!!.maxInputSize)
+    }
+
+    /**
+     * Same to call: isHardwareRotation = true; if (openGlVIew) isHardwareRotation = false;
+     * prepareVideo(640, 480, 30, 1200 * 1024, isHardwareRotation, 90);
+     *
+     * @return true if success, false if you get a error (Normally because the encoder selected
+     * doesn't support any configuration seated or your device hasn't a H264 encoder).
+     */
+    fun prepareVideo(): Boolean {
+        val isHardwareRotation = true
+        val rotation = CameraHelper.getCameraOrientation(context)
+        return prepareVideo(640, 480, 30, 1200 * 1024, isHardwareRotation, rotation)
+    }
+
+    /**
+     * @param forceVideo force type codec used. FIRST_COMPATIBLE_FOUND, SOFTWARE, HARDWARE
+     * @param forceAudio force type codec used. FIRST_COMPATIBLE_FOUND, SOFTWARE, HARDWARE
+     */
+    fun setForce(forceVideo: Force, forceAudio: Force) {
+        videoEncoder!!.setForce(forceVideo)
+        audioEncoder!!.setForce(forceAudio)
+    }
+
+
+    /**
+     * Need be called after @prepareVideo or/and @prepareAudio. This method override resolution of
+     *
+     * @param url of the stream like: protocol://ip:port/application/streamName
+     *
+     * RTSP: rtsp://192.168.1.1:1935/live/pedroSG94 RTSPS: rtsps://192.168.1.1:1935/live/pedroSG94
+     * RTMP: rtmp://192.168.1.1:1935/live/pedroSG94 RTMPS: rtmps://192.168.1.1:1935/live/pedroSG94
+     * @startPreview to resolution seated in @prepareVideo. If you never startPreview this method
+     * startPreview for you to resolution seated in @prepareVideo.
+     */
+    fun startStream(url: String) {
+        isStreaming = true
+        startEncoders()
+        startStreamRtp(url)
+    }
+
+    private fun startEncoders() {
+        videoEncoder!!.start()
+        audioEncoder!!.start()
+        microphoneManager!!.start()
+    }
+
+    private fun resetVideoEncoder() {
+        videoEncoder!!.reset()
+    }
+
+
+    /**
+     * Stop stream started with @startStream.
+     */
+    fun stopStream() {
+        if (isStreaming) {
+            isStreaming = false
+            stopStreamRtp()
+        }
+        microphoneManager!!.stop()
+        videoEncoder!!.stop()
+        audioEncoder!!.stop()
+
+    }
+
+    fun reTry(delay: Long, reason: String): Boolean {
+        val result = shouldRetry(reason)
+        if (result) {
+            reTry(delay)
+        }
+        return result
+    }
+
+    /**
+     * Replace with reTry(long delay, String reason);
+     */
+    @Deprecated("")
+    private fun reTry(delay: Long) {
+        resetVideoEncoder()
+        reConnect(delay)
+    }
+
+    //cache control
+    @Throws(RuntimeException::class)
+    fun resizeCache(newSize: Int) {
+        srsFlvMuxer.resizeFlvTagCache(newSize)
+
+    }
+     val cacheSize: Int
         get() = srsFlvMuxer.flvTagCacheSize
 
-    override val sentAudioFrames: Long
+     val sentAudioFrames: Long
         get() = srsFlvMuxer.sentAudioFrames
 
 
-    override val sentVideoFrames: Long
+     val sentVideoFrames: Long
         get() = srsFlvMuxer.sentVideoFrames
 
 
-    override val droppedAudioFrames: Long
+     val droppedAudioFrames: Long
         get() =
             srsFlvMuxer.droppedAudioFrames
 
 
-    override val droppedVideoFrames: Long
+     val droppedVideoFrames: Long
         get() =
             srsFlvMuxer.droppedVideoFrames
 
-
-    override fun resetSentAudioFrames() {
+     fun resetSentAudioFrames() {
         srsFlvMuxer.resetSentAudioFrames()
     }
 
-    override fun resetSentVideoFrames() {
+     fun resetSentVideoFrames() {
         srsFlvMuxer.resetSentVideoFrames()
     }
 
-    override fun resetDroppedAudioFrames() {
+     fun resetDroppedAudioFrames() {
         srsFlvMuxer.resetDroppedAudioFrames()
     }
 
-    override fun resetDroppedVideoFrames() {
+     fun resetDroppedVideoFrames() {
         srsFlvMuxer.resetDroppedVideoFrames()
     }
 
-    override fun setAuthorization(user: String, password: String) {
+    /**
+     * Basic auth developed to work with Wowza. No tested with other server
+     *
+     * @param user auth.
+     * @param password auth.
+     */
+
+    fun setAuthorization(user: String, password: String) {
         srsFlvMuxer.setAuthorization(user, password)
     }
 
-    override fun prepareAudioRtp(isStereo: Boolean, sampleRate: Int) {
+     fun prepareAudioRtp(isStereo: Boolean, sampleRate: Int) {
         srsFlvMuxer.setIsStereo(isStereo)
         srsFlvMuxer.setSampleRate(sampleRate)
     }
 
-    override fun startStreamRtp(url: String) {
+     fun startStreamRtp(url: String) {
         if (videoEncoder!!.rotation == 90 || videoEncoder!!.rotation == 270) {
             srsFlvMuxer.setVideoResolution(videoEncoder!!.height, videoEncoder!!.width)
         } else {
@@ -97,31 +316,123 @@ class RtmpCamera2(context: Context, val connectChecker: ConnectCheckerRtmp) : Rt
         srsFlvMuxer.start(url)
     }
 
-    override fun stopStreamRtp() {
+     fun stopStreamRtp() {
         srsFlvMuxer.stop()
     }
 
-    override fun setReTries(reTries: Int) {
+     fun setReTries(reTries: Int) {
         srsFlvMuxer.setReTries(reTries)
     }
 
-    override fun shouldRetry(reason: String): Boolean {
+     fun shouldRetry(reason: String): Boolean {
         return srsFlvMuxer.shouldRetry(reason)
     }
 
-    public override fun reConnect(delay: Long) {
+    public  fun reConnect(delay: Long) {
         srsFlvMuxer.reConnect(delay)
     }
 
-    override fun getAacDataRtp(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
+
+    /**
+     * Mute microphone, can be called before, while and after stream.
+     */
+    fun disableAudio() {
+        microphoneManager!!.mute()
+    }
+
+    /**
+     * Enable a muted microphone, can be called before, while and after stream.
+     */
+    fun enableAudio() {
+        microphoneManager!!.unMute()
+    }
+
+    /**
+     * Get mute state of microphone.
+     *
+     * @return true if muted, false if enabled
+     */
+    val isAudioMuted: Boolean
+        get() = microphoneManager!!.isMuted
+
+
+    fun getBitrate(): Int {
+        return videoEncoder!!.bitRate
+    }
+
+    fun getResolutionValue(): Int {
+        return videoEncoder!!.width * videoEncoder!!.height
+    }
+
+    fun getStreamWidth(): Int {
+        return videoEncoder!!.width
+    }
+
+    fun getStreamHeight(): Int {
+        return videoEncoder!!.height
+    }
+
+    private fun prepareCameraManager() {
+        isVideoEnabled = true
+    }
+
+    /**
+     * Set video bitrate of H264 in bits per second while stream.
+     *
+     * @param bitrate H264 in bits per second.
+     */
+    fun setVideoBitrateOnFly(bitrate: Int) {
+        videoEncoder!!.setVideoBitrateOnFly(bitrate)
+    }
+
+    /**
+     * Set limit FPS while stream. This will be override when you call to prepareVideo method. This
+     * could produce a change in iFrameInterval.
+     *
+     * @param fps frames per second
+     */
+    fun setLimitFPSOnFly(fps: Int) {
+        videoEncoder!!.fps = fps
+    }
+
+
+    override fun getAacData(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
+        if (isStreaming) getAacDataRtp(aacBuffer, info)
+    }
+
+    override fun onSpsPps(sps: ByteBuffer, pps: ByteBuffer) {
+        if (isStreaming) onSpsPpsVpsRtp(sps, pps, null)
+    }
+
+    override fun onSpsPpsVps(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer) {
+        if (isStreaming) onSpsPpsVpsRtp(sps, pps, vps)
+    }
+
+    override fun getVideoData(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
+        fpsListener.calculateFps()
+        if (isStreaming) getH264DataRtp(h264Buffer, info)
+    }
+
+    override fun inputPCMData(frame: Frame) {
+        audioEncoder!!.inputPCMData(frame)
+    }
+
+    override fun onVideoFormat(mediaFormat: MediaFormat) {
+    }
+
+    override fun onAudioFormat(mediaFormat: MediaFormat) {
+    }
+
+     fun getAacDataRtp(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         srsFlvMuxer.sendAudio(aacBuffer, info)
     }
 
-    override fun onSpsPpsVpsRtp(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer?) {
+     fun onSpsPpsVpsRtp(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer?) {
         srsFlvMuxer.setSpsPPs(sps, pps)
     }
 
-    override fun getH264DataRtp(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
+     fun getH264DataRtp(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         srsFlvMuxer.sendVideo(h264Buffer, info)
     }
+
 }

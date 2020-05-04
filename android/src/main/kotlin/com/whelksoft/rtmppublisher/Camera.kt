@@ -9,13 +9,13 @@ import android.hardware.camera2.*
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
 import android.media.CamcorderProfile
 import android.media.ImageReader
-import android.media.MediaFormat
 import android.media.MediaRecorder
 import android.os.Build
 import android.util.Size
 import android.view.OrientationEventListener
 import android.view.Surface
 import androidx.annotation.RequiresApi
+import com.pedro.rtplibrary.util.BitrateAdapter
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.EventChannel.EventSink
 import io.flutter.plugin.common.MethodChannel
@@ -53,6 +53,7 @@ class Camera(
     private val recordingProfile: CamcorderProfile
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
     private var rtmpCamera: RtmpCamera2? = null
+    private var bitrateAdapter: BitrateAdapter? = null
 
     // Mirrors camera.dart
     enum class ResolutionPreset {
@@ -539,9 +540,18 @@ class Camera(
     }
 
     override fun onNewBitrateRtmp(bitrate: Long) {
+        if (bitrateAdapter != null) {
+            bitrateAdapter!!.setMaxBitrate(bitrate.toInt());
+        }
     }
 
     override fun onConnectionSuccessRtmp() {
+        bitrateAdapter = BitrateAdapter(object : BitrateAdapter.Listener {
+            override fun onBitrateAdapted(bitrate: Int) {
+                rtmpCamera!!.setVideoBitrateOnFly(bitrate)
+            }
+        })
+        bitrateAdapter!!.setMaxBitrate(rtmpCamera!!.getBitrate())
     }
 
     override fun onConnectionFailedRtmp(reason: String) {
