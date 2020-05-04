@@ -1,4 +1,4 @@
-name: rtmppublisher
+name: camera_with_rtmp
 description: Camera plugin with rtmp streaming included.
 version: 0.1.0
 author: David Bennett
