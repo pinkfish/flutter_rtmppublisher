@@ -718,7 +718,7 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
 - (void)startImageStreamWithMessenger:(NSObject<FlutterBinaryMessenger> *)messenger {
   if (!_isStreamingImages) {
     FlutterEventChannel *eventChannel =
-        [FlutterEventChannel eventChannelWithName:@"plugins.flutter.io/rtmppublisher/imageStream"
+        [FlutterEventChannel eventChannelWithName:@"plugins.flutter.io/camera_with_rtmp/imageStream"
                                   binaryMessenger:messenger];
 
     _imageStreamHandler = [[FLTImageStreamHandler alloc] init];
@@ -867,7 +867,7 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
 }
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
   FlutterMethodChannel *channel =
-      [FlutterMethodChannel methodChannelWithName:@"plugins.flutter.io/rtmppublisher"
+      [FlutterMethodChannel methodChannelWithName:@"plugins.flutter.io/camera_with_rtmp"
                                   binaryMessenger:[registrar messenger]];
   RtmppublisherPlugin *instance = [[RtmppublisherPlugin alloc] initWithRegistry:[registrar textures]
                                                         messenger:[registrar messenger]];
@@ -885,7 +885,7 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
 
 - (void)handleMethodCall:(FlutterMethodCall *)call result:(FlutterResult)result {
   if (_dispatchQueue == nil) {
-    _dispatchQueue = dispatch_queue_create("com.whelksoft.rtmppublisher.dispatchqueue", NULL);
+    _dispatchQueue = dispatch_queue_create("com.whelksoft.camera_with_rtmp.dispatchqueue", NULL);
   }
 
   // Invoke the plugin on another dispatch queue to avoid blocking the UI.
@@ -946,7 +946,7 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
       };
       FlutterEventChannel *eventChannel = [FlutterEventChannel
           eventChannelWithName:[NSString
-                                   stringWithFormat:@"flutter.io/rtmppublisher/cameraEvents%lld",
+                                   stringWithFormat:@"flutter.io/camera_with_rtmp/cameraEvents%lld",
                                                     textureId]
                binaryMessenger:_messenger];
       [eventChannel setStreamHandler:cam];

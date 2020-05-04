@@ -1,4 +1,4 @@
-package com.whelksoft.rtmppublisher
+package com.whelksoft.camera_with_rtmp
 
 import android.app.Activity
 import android.os.Build

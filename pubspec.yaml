@@ -12,15 +12,20 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
+  path_provider: ^0.5.0
+  video_player: ^0.10.0
   flutter_test:
     sdk: flutter
+  flutter_driver:
+    sdk: flutter
+  pedantic: ^1.8.0
 
 # The following section is specific to Flutter.
 flutter:
   plugin:
     platforms:
       android:
-        package: com.whelksoft.rtmppublisher
+        package: com.whelksoft.camera_with_rtmp
         pluginClass: RtmppublisherPlugin
       ios:
         pluginClass: RtmppublisherPlugin

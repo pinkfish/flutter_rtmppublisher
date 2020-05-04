@@ -1,4 +1,4 @@
-package com.whelksoft.rtmppublisher
+package com.whelksoft.camera_with_rtmp
 
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
@@ -38,16 +38,6 @@ import java.nio.ByteBuffer
 import java.util.*
 
 
-/**
- * Wrapper to stream with camera2 api and microphone. Support stream with SurfaceView, TextureView,
- * OpenGlView(Custom SurfaceView that use OpenGl) and Context(background mode). All views use
- * Surface to buffer encoding mode for H264.
- *
- * API requirements:
- * API 21+.
- *
- * Created by pedro on 7/07/17.
- */
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
  class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData {
     protected val videoEncoder: VideoEncoder

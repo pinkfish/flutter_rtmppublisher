@@ -47,16 +47,6 @@ public class FlutterRTMPStreaming : NSObject {
      
            switch code {
            case RTMPConnection.Code.connectSuccess.rawValue:
-            /*
-            rtmpStream.videoSettings = [
-                   .width: width,
-                   .height: height,
-                   .profileLevel: kVTProfileLevel_H264_Baseline_AutoLevel,
-                   .maxKeyFrameIntervalDuration: 2,
-                   .bitrate: 160 * 1000
-            ]
- */
-
             rtmpStream.publish(name)
             break
            case RTMPConnection.Code.connectFailed.rawValue, RTMPConnection.Code.connectClosed.rawValue: break
@@ -72,7 +62,6 @@ public class FlutterRTMPStreaming : NSObject {
         } else {
             // Fallback on earlier versions
         }
-//        rtmpConnection.connect(Preference.defaultInstance.uri!)
     }
 
   @objc
@@ -100,24 +89,6 @@ public class FlutterRTMPStreaming : NSObject {
     rtmpConnection.close()
   }
 }
-/*
-extension URL {
-  func params() -> [String:Any] {
-    var dict = [String:Any]()
-
-    if let components = URLComponents(url: self, resolvingAgainstBaseURL: false) {
-      if let queryItems = components.queryItems {
-        for item in queryItems {
-          dict[item.name] = item.value!
-        }
-      }
-      return dict
-    } else {
-      return [:]
-    }
-  }
-}
-*/
 
 /*
 class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {

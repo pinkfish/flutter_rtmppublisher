@@ -1,4 +1,4 @@
-name: rtmppublisher_example
+name: camera_with_rtmp_example
 description: Demonstrates how to use the rtmppublisher plugin.
 
 publish_to: 'none'
@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  rtmppublisher:
+  camera_with_rtmp:
     path: ../
 
   path_provider: ^1.6.7
@@ -22,7 +22,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   pedantic: ^1.9.0
-  rtmppublisher:
+  camera_with_rtmp:
     path: ../
 
 flutter:

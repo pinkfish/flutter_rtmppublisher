@@ -3,13 +3,13 @@
 # Run `pod lib lint rtmppublisher.podspec' to validate before publishing.
 #
 Pod::Spec.new do |s|
-  s.name             = 'rtmppublisher'
+  s.name             = 'camera_with_rtmp'
   s.version          = '0.0.1'
   s.summary          = 'FLutter plugin to allow rtmp to work with ios.'
   s.description      = <<-DESC
 A new flutter plugin project.
                        DESC
-  s.homepage         = 'http://whelksoft.com'
+  s.homepage         = 'https://github.com/pinkfish/flutter_rtmppublisher'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'WhelkSoft' => 'pinkfish@gmail.com' }
   s.source           = { :path => '.' }
