@@ -1,3 +1,4 @@
-## 0.0.1
+## 0.1.0
 
-* TODO: Describe initial release.
+* First version of the system adding in basic rtmp streaming
+to the camera plugin.
