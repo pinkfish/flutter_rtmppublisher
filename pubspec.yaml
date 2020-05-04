@@ -1,6 +1,6 @@
 name: camera_with_rtmp
 description: Camera plugin with rtmp streaming included.
-version: 0.1.0
+version: 0.1.1
 homepage: https://github.com/pinkfish/flutter_rtmppublisher
 
 environment:
@@ -12,13 +12,13 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
-  path_provider: ^0.5.0
-  video_player: ^0.10.0
+  path_provider: ^1.6.7
+  video_player: ^0.10.9+1
   flutter_test:
     sdk: flutter
   flutter_driver:
     sdk: flutter
-  pedantic: ^1.8.0
+  pedantic: ^1.9.0
 
 # The following section is specific to Flutter.
 flutter:
