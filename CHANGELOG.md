@@ -1,6 +1,7 @@
 ## 0.1.3
 
 * Fix the length of the description.
+* Fix the android build.
 
 ## 0.1.2
 
