@@ -7,7 +7,7 @@ import io.flutter.plugin.common.EventChannel.EventSink
 import java.util.*
 
 
-class DartMessenger(messenger: BinaryMessenger?, eventChannelId: Long) {
+class DartMessenger(messenger: BinaryMessenger, eventChannelId: Long) {
     private var eventSink: EventSink? = null
 
     enum class EventType {
@@ -32,14 +32,15 @@ class DartMessenger(messenger: BinaryMessenger?, eventChannelId: Long) {
     }
 
     init {
-        EventChannel(messenger, "flutter.io/camera_with_rtmp/cameraEvents$eventChannelId")
+        assert(messenger != null);
+        EventChannel(messenger, "plugins.flutter.io/camera_with_rtmp/cameraEvents$eventChannelId")
                 .setStreamHandler(
                         object : EventChannel.StreamHandler {
-                            override fun onListen(arguments: Any, sink: EventSink) {
+                            override fun onListen(arguments: Any?, sink: EventSink) {
                                 eventSink = sink
                             }
 
-                            override fun onCancel(arguments: Any) {
+                            override fun onCancel(arguments: Any?) {
                                 eventSink = null
                             }
                         })

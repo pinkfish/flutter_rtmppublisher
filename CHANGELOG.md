@@ -1,3 +1,7 @@
+## 0.1.4
+
+* Fix a couple of issues with running on the android around events.
+
 ## 0.1.3
 
 * Fix the length of the description.

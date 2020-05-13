@@ -946,7 +946,7 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
       };
       FlutterEventChannel *eventChannel = [FlutterEventChannel
           eventChannelWithName:[NSString
-                                   stringWithFormat:@"flutter.io/camera_with_rtmp/cameraEvents%lld",
+                                   stringWithFormat:@"plugins.flutter.io/camera_with_rtmp/cameraEvents%lld",
                                                     textureId]
                binaryMessenger:_messenger];
       [eventChannel setStreamHandler:cam];
