@@ -12,8 +12,8 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
-  path_provider: ^1.6.7
-  video_player: ^0.10.9+1
+  path_provider: ^1.6.8
+  video_player: 0.10.0+8
   flutter_test:
     sdk: flutter
   flutter_driver:
