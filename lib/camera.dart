@@ -306,10 +306,10 @@ class CameraController extends ValueNotifier<CameraValue> {
     } on PlatformException catch (e) {
       throw CameraException(e.code, e.message);
     }
-    _eventSubscription =
-        EventChannel('plugins.flutter.io/camera_with_rtmp/cameraEvents$_textureId')
-            .receiveBroadcastStream()
-            .listen(_listener);
+    _eventSubscription = EventChannel(
+            'plugins.flutter.io/camera_with_rtmp/cameraEvents$_textureId')
+        .receiveBroadcastStream()
+        .listen(_listener);
     _creatingCompleter.complete();
     return _creatingCompleter.future;
   }
@@ -353,13 +353,21 @@ class CameraController extends ValueNotifier<CameraValue> {
       return;
     }
 
+    print("Event $map");
     switch (map['eventType']) {
       case 'error':
         value = value.copyWith(errorDescription: event['errorDescription']);
         break;
-      case 'cameraClosing':
+      case 'camera_closing':
         value = value.copyWith(
             isRecordingVideo: false, isStreamingVideoRtmp: false);
+        break;
+      case 'rtmp_connected':
+        break;
+      case 'rtmp_retry':
+        break;
+      case 'rtmp_stopped':
+        value = value.copyWith(isStreamingVideoRtmp: false);
         break;
     }
   }

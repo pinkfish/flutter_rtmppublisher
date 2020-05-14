@@ -39,7 +39,7 @@ import java.util.*
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
- class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData {
+class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData {
     protected val videoEncoder: VideoEncoder
     private var microphoneManager: MicrophoneManager
     private var audioEncoder: AudioEncoder
@@ -92,7 +92,6 @@ import java.util.*
     fun setProfileIop(profileIop: Byte) {
         srsFlvMuxer.setProfileIop(profileIop)
     }
-
 
 
     val inputSurface: Surface get() = videoEncoder.inputSurface
@@ -219,7 +218,6 @@ import java.util.*
         microphoneManager!!.stop()
         videoEncoder!!.stop()
         audioEncoder!!.stop()
-
     }
 
     fun reTry(delay: Long, reason: String): Boolean {
@@ -245,39 +243,40 @@ import java.util.*
         srsFlvMuxer.resizeFlvTagCache(newSize)
 
     }
-     val cacheSize: Int
+
+    val cacheSize: Int
         get() = srsFlvMuxer.flvTagCacheSize
 
-     val sentAudioFrames: Long
+    val sentAudioFrames: Long
         get() = srsFlvMuxer.sentAudioFrames
 
 
-     val sentVideoFrames: Long
+    val sentVideoFrames: Long
         get() = srsFlvMuxer.sentVideoFrames
 
 
-     val droppedAudioFrames: Long
+    val droppedAudioFrames: Long
         get() =
             srsFlvMuxer.droppedAudioFrames
 
 
-     val droppedVideoFrames: Long
+    val droppedVideoFrames: Long
         get() =
             srsFlvMuxer.droppedVideoFrames
 
-     fun resetSentAudioFrames() {
+    fun resetSentAudioFrames() {
         srsFlvMuxer.resetSentAudioFrames()
     }
 
-     fun resetSentVideoFrames() {
+    fun resetSentVideoFrames() {
         srsFlvMuxer.resetSentVideoFrames()
     }
 
-     fun resetDroppedAudioFrames() {
+    fun resetDroppedAudioFrames() {
         srsFlvMuxer.resetDroppedAudioFrames()
     }
 
-     fun resetDroppedVideoFrames() {
+    fun resetDroppedVideoFrames() {
         srsFlvMuxer.resetDroppedVideoFrames()
     }
 
@@ -292,12 +291,12 @@ import java.util.*
         srsFlvMuxer.setAuthorization(user, password)
     }
 
-     fun prepareAudioRtp(isStereo: Boolean, sampleRate: Int) {
+    fun prepareAudioRtp(isStereo: Boolean, sampleRate: Int) {
         srsFlvMuxer.setIsStereo(isStereo)
         srsFlvMuxer.setSampleRate(sampleRate)
     }
 
-     fun startStreamRtp(url: String) {
+    fun startStreamRtp(url: String) {
         if (videoEncoder!!.rotation == 90 || videoEncoder!!.rotation == 270) {
             srsFlvMuxer.setVideoResolution(videoEncoder!!.height, videoEncoder!!.width)
         } else {
@@ -306,19 +305,19 @@ import java.util.*
         srsFlvMuxer.start(url)
     }
 
-     fun stopStreamRtp() {
+    fun stopStreamRtp() {
         srsFlvMuxer.stop()
     }
 
-     fun setReTries(reTries: Int) {
+    fun setReTries(reTries: Int) {
         srsFlvMuxer.setReTries(reTries)
     }
 
-     fun shouldRetry(reason: String): Boolean {
+    fun shouldRetry(reason: String): Boolean {
         return srsFlvMuxer.shouldRetry(reason)
     }
 
-    public  fun reConnect(delay: Long) {
+    public fun reConnect(delay: Long) {
         srsFlvMuxer.reConnect(delay)
     }
 
@@ -413,15 +412,15 @@ import java.util.*
     override fun onAudioFormat(mediaFormat: MediaFormat) {
     }
 
-     fun getAacDataRtp(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
+    fun getAacDataRtp(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         srsFlvMuxer.sendAudio(aacBuffer, info)
     }
 
-     fun onSpsPpsVpsRtp(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer?) {
+    fun onSpsPpsVpsRtp(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer?) {
         srsFlvMuxer.setSpsPPs(sps, pps)
     }
 
-     fun getH264DataRtp(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
+    fun getH264DataRtp(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         srsFlvMuxer.sendVideo(h264Buffer, info)
     }
 

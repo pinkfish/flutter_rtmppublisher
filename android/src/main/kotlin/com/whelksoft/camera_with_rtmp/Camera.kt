@@ -424,6 +424,11 @@ class Camera(
             mediaRecorder!!.release()
             mediaRecorder = null
         }
+        if (rtmpCamera != null) {
+            rtmpCamera!!.stopStream();
+            rtmpCamera = null;
+            bitrateAdapter = null;
+        }
     }
 
     fun dispose() {
@@ -555,11 +560,31 @@ class Camera(
     }
 
     override fun onConnectionFailedRtmp(reason: String) {
+        if (rtmpCamera != null) {
+            // Retry first.
+            if (rtmpCamera!!.reTry(5000, reason)) {
+                activity!!.runOnUiThread {
+                    dartMessenger.send(DartMessenger.EventType.RTMP_RETRY, reason)
+                }
+            } else {
+                rtmpCamera!!.stopStream()
+                activity!!.runOnUiThread {
+                    dartMessenger.send(DartMessenger.EventType.RTMP_STOPPED, "Failed retry")
+                }
+            }
+        }
     }
 
     override fun onAuthErrorRtmp() {
+        activity!!.runOnUiThread {
+            dartMessenger.send(DartMessenger.EventType.ERROR, "Auth error")
+        }
     }
 
     override fun onDisconnectRtmp() {
+        rtmpCamera!!.stopStream()
+        activity!!.runOnUiThread {
+            dartMessenger.send(DartMessenger.EventType.RTMP_STOPPED, "Disconnected")
+        }
     }
 }

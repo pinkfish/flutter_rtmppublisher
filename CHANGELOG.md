@@ -1,3 +1,7 @@
+## 0.1.5
+
+* Add in retries and disconnect processing for android on errors.
+
 ## 0.1.4
 
 * Fix a couple of issues with running on the android around events.
