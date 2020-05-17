@@ -53,14 +53,6 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
     var isStreaming = false
         private set
 
-    /**
-     * Get video camera state
-     *
-     * @return true if disabled, false if enabled
-     */
-    var isVideoEnabled = false
-        private set
-
     private val fpsListener = FpsListener()
 
     init {
@@ -118,7 +110,6 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
                              -1): Boolean {
         val result = videoEncoder.prepareVideoEncoder(width, height, fps, bitrate, rotation, hardwareRotation,
                 iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
-        prepareCameraManager()
         return result
     }
 
@@ -155,19 +146,6 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
         prepareAudioRtp(isStereo, sampleRate)
         return audioEncoder!!.prepareAudioEncoder(bitrate, sampleRate, isStereo,
                 microphoneManager!!.maxInputSize)
-    }
-
-    /**
-     * Same to call: isHardwareRotation = true; if (openGlVIew) isHardwareRotation = false;
-     * prepareVideo(640, 480, 30, 1200 * 1024, isHardwareRotation, 90);
-     *
-     * @return true if success, false if you get a error (Normally because the encoder selected
-     * doesn't support any configuration seated or your device hasn't a H264 encoder).
-     */
-    fun prepareVideo(): Boolean {
-        val isHardwareRotation = true
-        val rotation = CameraHelper.getCameraOrientation(context)
-        return prepareVideo(640, 480, 30, 1200 * 1024, isHardwareRotation, rotation)
     }
 
     /**
@@ -223,18 +201,10 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
     fun reTry(delay: Long, reason: String): Boolean {
         val result = shouldRetry(reason)
         if (result) {
-            reTry(delay)
+            resetVideoEncoder()
+            reConnect(delay)
         }
         return result
-    }
-
-    /**
-     * Replace with reTry(long delay, String reason);
-     */
-    @Deprecated("")
-    private fun reTry(delay: Long) {
-        resetVideoEncoder()
-        reConnect(delay)
     }
 
     //cache control
@@ -361,11 +331,7 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
         return videoEncoder!!.height
     }
 
-    private fun prepareCameraManager() {
-        isVideoEnabled = true
-    }
-
-    /**
+   /**
      * Set video bitrate of H264 in bits per second while stream.
      *
      * @param bitrate H264 in bits per second.

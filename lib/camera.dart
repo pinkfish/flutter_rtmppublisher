@@ -125,6 +125,37 @@ class CameraDescription {
   }
 }
 
+/// Statistics about the streaming, bitrate, errors, drops etc.
+///
+class StreamStatistics {
+  final int cacheSize;
+  final int sentAudioFrames;
+  final int sentVideoFrames;
+  final int droppedAudioFrames;
+  final int droppedVideoFrames;
+  final bool isAudioMuted;
+  final int bitrate;
+  final int width;
+  final int height;
+
+  StreamStatistics({
+    @required this.cacheSize,
+    @required this.sentAudioFrames,
+    @required this.sentVideoFrames,
+    @required this.droppedAudioFrames,
+    @required this.droppedVideoFrames,
+    @required this.bitrate,
+    @required this.width,
+    @required this.height,
+    @required this.isAudioMuted,
+  });
+
+  @override
+  String toString() {
+    return 'StreamStatistics{cacheSize: $cacheSize, sentAudioFrames: $sentAudioFrames, sentVideoFrames: $sentVideoFrames, droppedAudioFrames: $droppedAudioFrames, droppedVideoFrames: $droppedVideoFrames, isAudioMuted: $isAudioMuted, bitrate: $bitrate, width: $width, height: $height}';
+  }
+}
+
 /// This is thrown when the plugin reports an error.
 class CameraException implements Exception {
   CameraException(this.code, this.description);
@@ -489,6 +520,42 @@ class CameraController extends ValueNotifier<CameraValue> {
 
     await _imageStreamSubscription.cancel();
     _imageStreamSubscription = null;
+  }
+
+  /// Get statistics about the rtmp stream.
+  ///
+  /// Throws a [CameraException] if image streaming was not started.
+  Future<StreamStatistics> getStreamStatistics() async {
+    if (!value.isInitialized || _isDisposed) {
+      throw CameraException(
+        'Uninitialized CameraController',
+        'stopImageStream was called on uninitialized CameraController.',
+      );
+    }
+    if (!value.isStreamingVideoRtmp) {
+      throw CameraException(
+        'No camera is streaming images',
+        'stopImageStream was called when no camera is streaming images.',
+      );
+    }
+
+    try {
+      var data = await _channel
+          .invokeMapMethod<String, dynamic>('getStreamStatistics');
+      return StreamStatistics(
+        sentAudioFrames: data["sentAudioFrames"],
+        sentVideoFrames: data["sentVideoFrames"],
+        height: data["height"],
+        width: data["width"],
+        bitrate: data["bitrate"],
+        isAudioMuted: data["isAudioMuted"],
+        cacheSize: data["cacheSize"],
+        droppedAudioFrames: data["drpppedAudioFrames"],
+        droppedVideoFrames: data["droppedVideoFrames"],
+      );
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
   }
 
   /// Start a video recording and save the file to [path].

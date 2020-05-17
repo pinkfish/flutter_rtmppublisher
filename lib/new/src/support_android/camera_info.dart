@@ -12,7 +12,7 @@ enum Facing { back, front }
 /// Information about a camera.
 ///
 /// Retrieved from [Camera.getCameraInfo].
-class CameraInfo implements CameraDescription {
+class CameraInfo implements CameraDescriptionNew {
   const CameraInfo({
     @required this.id,
     @required this.facing,

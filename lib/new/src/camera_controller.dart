@@ -34,7 +34,7 @@ class CameraController {
   /// cameras.
   ///
   /// This will choose the best [CameraConfigurator] for the current device.
-  factory CameraController({@required CameraDescription description}) {
+  factory CameraController({@required CameraDescriptionNew description}) {
     return CameraController._(
       description: description,
       configurator: _createDefaultConfigurator(description),
@@ -55,7 +55,7 @@ class CameraController {
   /// Use [CameraController.availableCameras] to get a list of available
   /// cameras.
   factory CameraController.customConfigurator({
-    @required CameraDescription description,
+    @required CameraDescriptionNew description,
     @required CameraConfigurator configurator,
   }) {
     return CameraController._(
@@ -74,7 +74,7 @@ class CameraController {
   bool _isDisposed = false;
 
   /// Details for the camera this controller accesses.
-  final CameraDescription description;
+  final CameraDescriptionNew description;
 
   /// Configurator used to control the camera.
   final CameraConfigurator configurator;
@@ -87,7 +87,7 @@ class CameraController {
   /// Retrieves a list of available cameras for the current device.
   ///
   /// This will choose the best [CameraAPI] for the current device.
-  static Future<List<CameraDescription>> availableCameras() async {
+  static Future<List<CameraDescriptionNew>> availableCameras() async {
     throw UnimplementedError('$defaultTargetPlatform not supported');
   }
 
@@ -141,7 +141,7 @@ class CameraController {
   }
 
   static CameraConfigurator _createDefaultConfigurator(
-    CameraDescription description,
+    CameraDescriptionNew description,
   ) {
     final CameraApi api = _getCameraApi(description);
     switch (api) {
@@ -156,7 +156,7 @@ class CameraController {
     return null; // Unreachable code
   }
 
-  static CameraApi _getCameraApi(CameraDescription description) {
+  static CameraApi _getCameraApi(CameraDescriptionNew description) {
     return CameraApi.iOS;
 
     // TODO(bparrishMines): Uncomment this when platform specific code is added.

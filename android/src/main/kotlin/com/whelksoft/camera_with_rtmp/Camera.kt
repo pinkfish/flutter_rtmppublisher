@@ -54,6 +54,9 @@ class Camera(
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
     private var rtmpCamera: RtmpCamera2? = null
     private var bitrateAdapter: BitrateAdapter? = null
+    private val maxRetries = 3
+    private var currentRetries = 0
+    private var publishUrl : String? = null
 
     // Mirrors camera.dart
     enum class ResolutionPreset {
@@ -87,6 +90,7 @@ class Camera(
     private fun prepareRtmpPublished(url: String) {
         if (rtmpCamera != null) {
             rtmpCamera!!.stopStream()
+            rtmpCamera = null
         }
         rtmpCamera = RtmpCamera2(
                 context = activity!!.applicationContext!!,
@@ -100,6 +104,7 @@ class Camera(
                 1200 * 1024,
                 false,
                 mediaOrientation)
+        publishUrl = url
     }
 
 
@@ -426,8 +431,9 @@ class Camera(
         }
         if (rtmpCamera != null) {
             rtmpCamera!!.stopStream();
-            rtmpCamera = null;
-            bitrateAdapter = null;
+            rtmpCamera = null
+            bitrateAdapter = null
+            publishUrl = null
         }
     }
 
@@ -443,6 +449,7 @@ class Camera(
             return
         }
         try {
+            currentRetries = 0
             prepareRtmpPublished(url)
             createCaptureSession(
                     CameraDevice.TEMPLATE_RECORD, Runnable { rtmpCamera!!.startStream(url) }, rtmpCamera!!.inputSurface)
@@ -461,7 +468,9 @@ class Camera(
             return
         }
         try {
+            currentRetries = 0
             recordingRtmp = false
+            publishUrl = null
             rtmpCamera!!.stopStream()
             startPreview()
             result.success(null)
@@ -478,6 +487,7 @@ class Camera(
             return
         }
         try {
+            currentRetries = 0
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 rtmpCamera!!.stopStream()
             } else {
@@ -491,6 +501,24 @@ class Camera(
         result.success(null)
     }
 
+    fun getStreamStatistics(result: MethodChannel.Result) {
+        if (rtmpCamera != null) {
+            var ret = hashMapOf<String, Any>();
+            ret["cacheSize"] = rtmpCamera!!.cacheSize
+            ret["sentAudioFrames"] = rtmpCamera!!.sentAudioFrames
+            ret["sentVideoFrames"] = rtmpCamera!!.sentVideoFrames
+            ret["droppedAudioFrames"] = rtmpCamera!!.droppedAudioFrames
+            ret["droppedVideoFrames"] = rtmpCamera!!.droppedVideoFrames
+            ret["isAudioMuted"] = rtmpCamera!!.isAudioMuted
+            ret["bitRate"] = rtmpCamera!!.getBitrate()
+            ret["width"] = rtmpCamera!!.getStreamWidth()
+            ret["height"] = rtmpCamera!!.getStreamHeight()
+            result.success(ret)
+        } else {
+            result.error("noStats", "Not streaming anything", null)
+        }
+    }
+
     fun resumeVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
             result.success(null)
@@ -498,7 +526,7 @@ class Camera(
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                //rtmpCamera!!.startStream(url!!)
+                rtmpCamera!!.startStream(publishUrl!!)
             } else {
                 result.error(
                         "videoStreamingFailed", "resumeVideoStreaming requires Android API +24.", null)
@@ -562,15 +590,21 @@ class Camera(
     override fun onConnectionFailedRtmp(reason: String) {
         if (rtmpCamera != null) {
             // Retry first.
-            if (rtmpCamera!!.reTry(5000, reason)) {
-                activity!!.runOnUiThread {
-                    dartMessenger.send(DartMessenger.EventType.RTMP_RETRY, reason)
+            for ( i in currentRetries..maxRetries) {
+                currentRetries = i
+                if (rtmpCamera!!.reTry(5000, reason)) {
+                    activity!!.runOnUiThread {
+                        dartMessenger.send(DartMessenger.EventType.RTMP_RETRY, reason)
+                    }
+                    // Success!
+                    return
                 }
-            } else {
-                rtmpCamera!!.stopStream()
-                activity!!.runOnUiThread {
-                    dartMessenger.send(DartMessenger.EventType.RTMP_STOPPED, "Failed retry")
-                }
+            }
+
+            rtmpCamera!!.stopStream()
+            rtmpCamera = null
+            activity!!.runOnUiThread {
+                dartMessenger.send(DartMessenger.EventType.RTMP_STOPPED, "Failed retry")
             }
         }
     }

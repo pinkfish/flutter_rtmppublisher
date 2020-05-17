@@ -7,9 +7,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:camera_with_rtmp/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:camera_with_rtmp/camera.dart';
 import 'package:video_player/video_player.dart';
 
 class CameraExampleHome extends StatefulWidget {
@@ -44,8 +44,10 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   VideoPlayerController videoController;
   VoidCallback videoPlayerListener;
   bool enableAudio = true;
-  TextEditingController _textFieldController =
-      TextEditingController(text: "rtmp://34.70.40.166:1935/LiveApp/rabbit");
+  TextEditingController _textFieldController = TextEditingController(
+      text: "rtmp://34.70.40.166:1935/LiveApp/womble");
+
+  Timer _timer;
 
   @override
   void initState() {
@@ -67,6 +69,10 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     }
     if (state == AppLifecycleState.inactive) {
       controller?.dispose();
+      if (_timer != null) {
+        _timer.cancel();
+        _timer = null;
+      }
     } else if (state == AppLifecycleState.resumed) {
       if (controller != null) {
         onNewCameraSelected(controller.description);
@@ -495,8 +501,16 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     }
 
     try {
+      if (_timer != null) {
+        _timer.cancel();
+        _timer = null;
+      }
       url = myUrl;
       await controller.startVideoStreaming(url);
+      _timer = Timer.periodic(Duration(seconds: 1), (timer) async {
+        var stats = await controller.getStreamStatistics();
+        print(stats);
+      });
     } on CameraException catch (e) {
       _showCameraException(e);
       return null;
@@ -511,6 +525,10 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
 
     try {
       await controller.stopVideoStreaming();
+      if (_timer != null) {
+        _timer.cancel();
+        _timer = null;
+      }
     } on CameraException catch (e) {
       _showCameraException(e);
       return null;

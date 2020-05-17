@@ -23,7 +23,7 @@ enum LensDirection { front, back, unknown }
 ///
 /// This provides information such as the [name] of the camera and [direction]
 /// the lens face.
-abstract class CameraDescription {
+abstract class CameraDescriptionNew {
   /// Location of the camera on the device.
   LensDirection get direction;
 

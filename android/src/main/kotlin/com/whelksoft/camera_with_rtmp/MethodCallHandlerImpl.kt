@@ -100,6 +100,13 @@ internal class MethodCallHandlerImpl(
                     handleException(e, result)
                 }
             }
+            "getStreamStatistics" -> {
+                try {
+                    camera!!.getStreamStatistics(result)
+                } catch (e: Exception) {
+                    handleException(e, result)
+                }
+            }
             "dispose" -> {
                 if (camera != null) {
                     camera!!.dispose()
