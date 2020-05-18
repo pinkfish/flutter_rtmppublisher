@@ -98,11 +98,14 @@ class Camera(
 
         rtmpCamera!!.prepareAudio()
         rtmpCamera!!.prepareVideo(
-                streamSize.width,
-                streamSize.height,
+                //1280,
+               // 720,
+                recordingProfile.videoFrameWidth,
+                recordingProfile.videoFrameHeight,
                 recordingProfile.videoFrameRate,
+
                 1200 * 1024,
-                false,
+                true,
                 mediaOrientation)
         publishUrl = url
     }
@@ -456,9 +459,9 @@ class Camera(
             recordingRtmp = true
             result.success(null)
         } catch (e: CameraAccessException) {
-            result.error("videoRecordingFailed", e.message, null)
+            result.error("videoStreamingFailed", e.message, null)
         } catch (e: IOException) {
-            result.error("videoRecordingFailed", e.message, null)
+            result.error("videoStreamingFailed", e.message, null)
         }
     }
 

@@ -1,3 +1,8 @@
+## 0.1.6
+
+* Fix the resolution in the android side to correctly stream with the camera
+  size itself.
+
 ## 0.1.5
 
 * Add in retries and disconnect processing for android on errors.

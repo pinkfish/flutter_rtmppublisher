@@ -45,7 +45,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   VoidCallback videoPlayerListener;
   bool enableAudio = true;
   TextEditingController _textFieldController = TextEditingController(
-      text: "rtmp://34.70.40.166:1935/LiveApp/womble");
+      text: "rtmp://34.70.40.166:1935/LiveApp/815794454132232781694481");
 
   Timer _timer;
 
@@ -308,6 +308,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
       if (mounted) setState(() {});
       if (controller.value.hasError) {
         showInSnackBar('Camera error ${controller.value.errorDescription}');
+        _timer.cancel();
       }
     });
 
