@@ -682,14 +682,9 @@ class CameraController extends ValueNotifier<CameraValue> {
     }
   }
 
-  /// Start a video recording and save the file to [path].
+  /// Start a video streaming to the url in [url`].
   ///
-  /// A path can for example be obtained using
-  /// [path_provider](https://pub.dartlang.org/packages/path_provider).
-  ///
-  /// The file is written on the flight as the video is being recorded.
-  /// If a file already exists at the provided path an error will be thrown.
-  /// The file can be read as soon as [stopVideoRecording] returns.
+  /// This uses rtmp to do the sending the remote side.
   ///
   /// Throws a [CameraException] if the capture fails.
   Future<void> startVideoStreaming(String url,
@@ -727,7 +722,7 @@ class CameraController extends ValueNotifier<CameraValue> {
     }
   }
 
-  /// Stop recording.
+  /// Stop streaming.
   Future<void> stopVideoStreaming() async {
     if (!value.isInitialized || _isDisposed) {
       throw CameraException(
@@ -747,6 +742,39 @@ class CameraController extends ValueNotifier<CameraValue> {
         'stopVideoStreaming',
         <String, dynamic>{'textureId': _textureId},
       );
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
+  }
+
+  /// Stop streaming.
+  Future<void> stopEverything() async {
+    if (!value.isInitialized || _isDisposed) {
+      throw CameraException(
+        'Uninitialized CameraController',
+        'stopVideoStreaming was called on uninitialized CameraController',
+      );
+    }
+    try {
+      value = value.copyWith(isStreamingVideoRtmp: false);
+      if (value.isStreamingVideoRtmp) {
+        value = value.copyWith(isStreamingVideoRtmp: false);
+        await _channel.invokeMethod<void>(
+          'stopVideoStreaming',
+          <String, dynamic>{'textureId': _textureId},
+        );
+      }
+      if (value.isRecordingVideo) {
+        value = value.copyWith(isRecordingVideo: false);
+        await _channel.invokeMethod<void>(
+          'stopVideoRecording',
+          <String, dynamic>{'textureId': _textureId},
+        );
+      }
+      if (value.isStreamingImages) {
+        value = value.copyWith(isStreamingImages: false);
+        await _channel.invokeMethod<void>('stopImageStream');
+      }
     } on PlatformException catch (e) {
       throw CameraException(e.code, e.message);
     }

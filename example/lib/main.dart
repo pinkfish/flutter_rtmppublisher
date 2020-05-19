@@ -351,9 +351,16 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   }
 
   void onStopButtonPressed() {
-    stopVideoRecording().then((_) {
-      if (mounted) setState(() {});
-      showInSnackBar('Video recorded to: $videoPath');
+    stopVideoStreaming().then((_) {
+      stopVideoRecording().then((_) {
+        if (mounted) setState(() {});
+        showInSnackBar('Video recorded to: $videoPath');
+      });
+    }).catchError((_) {
+      stopVideoRecording().then((_) {
+        if (mounted) setState(() {});
+        showInSnackBar('Video recorded to: $videoPath');
+      });
     });
   }
 
