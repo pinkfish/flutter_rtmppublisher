@@ -1,3 +1,8 @@
+## 0.1.7
+
+* Add in the ability to set the streaming preset on creation.
+* Allow setting the bitrrate on stream creation.
+
 ## 0.1.6
 
 * Fix the resolution in the android side to correctly stream with the camera

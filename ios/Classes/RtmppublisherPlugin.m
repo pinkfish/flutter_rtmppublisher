@@ -161,7 +161,7 @@ static ResolutionPreset getResolutionPresetForString(NSString *preset) {
                                      }];
     @throw error;
   }
-}
+ }
 
 @interface FLTCam : NSObject <FlutterTexture,
                               AVCaptureVideoDataOutputSampleBufferDelegate,
@@ -181,6 +181,7 @@ static ResolutionPreset getResolutionPresetForString(NSString *preset) {
 @property(readonly) CVPixelBufferRef volatile latestPixelBuffer;
 @property(readonly, nonatomic) CGSize previewSize;
 @property(readonly, nonatomic) CGSize captureSize;
+@property(readonly, nonatomic) CGSize streamingSize;
 @property(strong, nonatomic) AVAssetWriter *videoWriter;
 @property(strong, nonatomic) AVAssetWriterInput *videoWriterInput;
 @property(strong, nonatomic) AVAssetWriterInput *audioWriterInput;
@@ -199,6 +200,7 @@ static ResolutionPreset getResolutionPresetForString(NSString *preset) {
 @property(assign, nonatomic) BOOL isAudioSetup;
 @property(assign, nonatomic) BOOL isStreamingImages;
 @property(assign, nonatomic) ResolutionPreset resolutionPreset;
+@property(assign, nonatomic) ResolutionPreset streamingPreset;
 @property(assign, nonatomic) CMTime lastVideoSampleTime;
 @property(assign, nonatomic) CMTime lastAudioSampleTime;
 @property(assign, nonatomic) CMTime videoTimeOffset;
@@ -228,6 +230,7 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
 
 - (instancetype)initWithCameraName:(NSString *)cameraName
                   resolutionPreset:(NSString *)resolutionPreset
+                   streamingPreset:(NSString *)streamingPreset
                        enableAudio:(BOOL)enableAudio
                      dispatchQueue:(dispatch_queue_t)dispatchQueue
                              error:(NSError **)error {
@@ -238,7 +241,12 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
   } @catch (NSError *e) {
     *error = e;
   }
-  _enableAudio = enableAudio;
+  @try {
+     _streamingPreset = getResolutionPresetForString(streamingPreset);
+   } @catch (NSError *e) {
+     *error = e;
+   }
+   _enableAudio = enableAudio;
   _dispatchQueue = dispatchQueue;
   _captureSession = [[AVCaptureSession alloc] init];
 
@@ -354,6 +362,57 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
       }
   }
 }
+
+- (void)setStreamingSessionPreset:(ResolutionPreset)resolutionPreset {
+  switch (resolutionPreset) {
+    case max:
+      if ([_captureSession canSetSessionPreset:AVCaptureSessionPresetHigh]) {
+        _streamingSize =
+            CGSizeMake(_captureDevice.activeFormat.highResolutionStillImageDimensions.width,
+                       _captureDevice.activeFormat.highResolutionStillImageDimensions.height);
+        break;
+      }
+    case ultraHigh:
+      if ([_captureSession canSetSessionPreset:AVCaptureSessionPreset3840x2160]) {
+        _streamingSize = CGSizeMake(3840, 2160);
+        break;
+      }
+    case veryHigh:
+      if ([_captureSession canSetSessionPreset:AVCaptureSessionPreset1920x1080]) {
+        _streamingSize = CGSizeMake(1920, 1080);
+        break;
+      }
+    case high:
+      if ([_captureSession canSetSessionPreset:AVCaptureSessionPreset1280x720]) {
+        _streamingSize = CGSizeMake(1280, 720);
+        break;
+      }
+    case medium:
+      if ([_captureSession canSetSessionPreset:AVCaptureSessionPreset640x480]) {
+        _streamingSize = CGSizeMake(640, 480);
+        break;
+      }
+    case low:
+      if ([_captureSession canSetSessionPreset:AVCaptureSessionPreset352x288]) {
+        _streamingSize = CGSizeMake(352, 288);
+        break;
+      }
+    default:
+      if ([_captureSession canSetSessionPreset:AVCaptureSessionPresetLow]) {
+        _streamingSize = CGSizeMake(352, 288);
+      } else {
+        NSError *error =
+            [NSError errorWithDomain:NSCocoaErrorDomain
+                                code:NSURLErrorUnknown
+                            userInfo:@{
+                              NSLocalizedDescriptionKey :
+                                  @"No capture session available for current capture session."
+                            }];
+        @throw error;
+      }
+  }
+}
+
 
 - (void)captureOutput:(AVCaptureOutput *)output
     didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
@@ -666,20 +725,18 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
   _isRecordingPaused = NO;
 }
 
-- (void)startVideoStreamingAtUrl:(NSString *)url result:(FlutterResult)result {
+- (void)startVideoStreamingAtUrl:(NSString *)url bitrate: (NSNumber *)bitrate result:(FlutterResult)result {
   if (!_isStreaming) {
-      if (![self setupWriterForUrl:url ]) {
-        _eventSink(@{@"event" : @"error", @"errorDescription" : @"Setup Writer Failed"});
-        return;
-      }
-      if (@available(iOS 9.0, *)) {
-          os_log(OS_LOG_DEFAULT, "Start streaming");
-      } else {
-          // Fallback on earlier versions
-      }
+    if (![self setupWriterForUrl:url ]) {
+      _eventSink(@{@"event" : @"error", @"errorDescription" : @"Setup Writer Failed"});
+      return;
+    }
 
     _rtmpStream = [[FlutterRTMPStreaming alloc] init];
-    [_rtmpStream openWithUrl:url width: _captureSize.width height: _captureSize.height];
+    if (bitrate == nil || bitrate == 0) {
+        bitrate = [NSNumber numberWithInt:160 * 1000];
+    }
+    [_rtmpStream openWithUrl:url width: _streamingSize.width height: _streamingSize.height bitrate: bitrate];
     _isStreaming = YES;
     _isStreamingPaused = NO;
     _videoTimeOffset = CMTimeMake(0, 1);
@@ -926,10 +983,12 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
   } else if ([@"initialize" isEqualToString:call.method]) {
     NSString *cameraName = call.arguments[@"cameraName"];
     NSString *resolutionPreset = call.arguments[@"resolutionPreset"];
+    NSString *streamingPreset = call.arguments[@"streamingPreset"];
     NSNumber *enableAudio = call.arguments[@"enableAudio"];
     NSError *error;
     FLTCam *cam = [[FLTCam alloc] initWithCameraName:cameraName
                                     resolutionPreset:resolutionPreset
+                                     streamingPreset:streamingPreset
                                          enableAudio:[enableAudio boolValue]
                                        dispatchQueue:_dispatchQueue
                                                error:&error];
@@ -991,7 +1050,7 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
     } else if ([@"stopVideoRecording" isEqualToString:call.method]) {
       [_camera stopVideoRecordingWithResult:result];
     } else if ([@"startVideoStreaming" isEqualToString:call.method]) {
-      [_camera startVideoStreamingAtUrl:call.arguments[@"url"] result:result];
+      [_camera startVideoStreamingAtUrl:call.arguments[@"url"] bitrate:call.arguments[@"bitrate"] result:result];
     } else if ([@"stopVideoStreaming" isEqualToString:call.method]) {
       [_camera stopVideoStreamingWithResult:result];
     } else {

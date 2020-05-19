@@ -16,7 +16,7 @@ public class FlutterRTMPStreaming : NSObject {
     private var name: String? = nil
 
   @objc
-    public func open(url: String, width: Int, height: Int) {
+    public func open(url: String, width: Int, height: Int, bitrate: Int) {
     rtmpStream = RTMPStream(connection: rtmpConnection)
     rtmpConnection.addEventListener(.rtmpStatus, selector:#selector(rtmpStatusHandler), observer: self)
     rtmpConnection.addEventListener(.ioError, selector: #selector(rtmpErrorHandler), observer: self)
@@ -31,9 +31,8 @@ public class FlutterRTMPStreaming : NSObject {
            .height: height,
            .profileLevel: kVTProfileLevel_H264_Baseline_AutoLevel,
            .maxKeyFrameIntervalDuration: 2,
-           .bitrate: 160 * 1000
+           .bitrate: bitrate ?? 160 * 1000
     ]
-//    rtmpStream.qosDelegate = MyRTMPStreamQosDelegate()
     rtmpConnection.connect(self.url ?? "frog")
   }
     

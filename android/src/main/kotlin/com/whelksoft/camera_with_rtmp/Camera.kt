@@ -34,6 +34,7 @@ class Camera(
         val dartMessenger: DartMessenger,
         val cameraName: String,
         val resolutionPreset: String?,
+        val streamingPreset: String?,
         val enableAudio: Boolean) : ConnectCheckerRtmp {
     private val cameraManager: CameraManager
     private val orientationEventListener: OrientationEventListener
@@ -41,7 +42,6 @@ class Camera(
     private val sensorOrientation: Int
     private val captureSize: Size
     private val previewSize: Size
-    private val streamSize: Size
     private var cameraDevice: CameraDevice? = null
     private var cameraCaptureSession: CameraCaptureSession? = null
     private var pictureImageReader: ImageReader? = null
@@ -51,12 +51,13 @@ class Camera(
     private var recordingVideo = false
     private var recordingRtmp = false
     private val recordingProfile: CamcorderProfile
+    private val streamingProfile: CamcorderProfile
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
     private var rtmpCamera: RtmpCamera2? = null
     private var bitrateAdapter: BitrateAdapter? = null
     private val maxRetries = 3
     private var currentRetries = 0
-    private var publishUrl : String? = null
+    private var publishUrl: String? = null
 
     // Mirrors camera.dart
     enum class ResolutionPreset {
@@ -87,7 +88,7 @@ class Camera(
     }
 
     @Throws(IOException::class)
-    private fun prepareRtmpPublished(url: String) {
+    private fun prepareRtmpPublished(url: String, fps: Int, bitrate: Int?) {
         if (rtmpCamera != null) {
             rtmpCamera!!.stopStream()
             rtmpCamera = null
@@ -97,14 +98,15 @@ class Camera(
                 connectChecker = this)
 
         rtmpCamera!!.prepareAudio()
+        var bitrateToUse = bitrate
+        if (bitrateToUse == null) {
+            bitrateToUse = 1200 * 1024
+        }
         rtmpCamera!!.prepareVideo(
-                //1280,
-               // 720,
-                recordingProfile.videoFrameWidth,
-                recordingProfile.videoFrameHeight,
-                recordingProfile.videoFrameRate,
-
-                1200 * 1024,
+                streamingProfile.videoFrameWidth,
+                streamingProfile.videoFrameHeight,
+                fps,
+                bitrateToUse,
                 true,
                 mediaOrientation)
         publishUrl = url
@@ -222,13 +224,8 @@ class Camera(
     }
 
     @Throws(CameraAccessException::class)
-    private fun createCaptureSession(templateType: Int, vararg surfaces: Surface) {
-        createCaptureSession(templateType, null, *surfaces)
-    }
-
-    @Throws(CameraAccessException::class)
     private fun createCaptureSession(
-            templateType: Int, onSuccessCallback: Runnable?, vararg surfaces: Surface) {
+            templateType: Int, onSuccessCallback: Runnable, vararg surfaces: Surface?) {
         // Close any existing capture session.
         closeCaptureSession()
 
@@ -240,7 +237,8 @@ class Camera(
         surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
         val flutterSurface = Surface(surfaceTexture)
         captureRequestBuilder!!.addTarget(flutterSurface)
-        val remainingSurfaces = Arrays.asList(*surfaces)
+        val remainingSurfacesNull = Arrays.asList(*surfaces)
+        var remainingSurfaces = remainingSurfacesNull.filterNotNull()
         if (templateType != CameraDevice.TEMPLATE_PREVIEW) {
             // If it is not preview mode, add all surfaces as targets.
             for (surface in remainingSurfaces) {
@@ -294,7 +292,11 @@ class Camera(
             prepareMediaRecorder(filePath)
             recordingVideo = true
             createCaptureSession(
-                    CameraDevice.TEMPLATE_RECORD, Runnable { mediaRecorder!!.start() }, mediaRecorder!!.surface)
+                    CameraDevice.TEMPLATE_RECORD,
+                    Runnable { mediaRecorder!!.start() },
+                    mediaRecorder!!.surface,
+                    rtmpCamera?.inputSurface,
+                    imageStreamReader!!.surface)
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -362,12 +364,17 @@ class Camera(
 
     @Throws(CameraAccessException::class)
     fun startPreview() {
-        createCaptureSession(CameraDevice.TEMPLATE_PREVIEW, pictureImageReader!!.surface)
+        createCaptureSession(CameraDevice.TEMPLATE_PREVIEW, Runnable {}, pictureImageReader!!.surface)
     }
 
     @Throws(CameraAccessException::class)
     fun startPreviewWithImageStream(imageStreamChannel: EventChannel) {
-        createCaptureSession(CameraDevice.TEMPLATE_RECORD, imageStreamReader!!.surface)
+        createCaptureSession(
+                CameraDevice.TEMPLATE_RECORD,
+                Runnable{},
+                imageStreamReader!!.surface,
+                mediaRecorder?.surface,
+                rtmpCamera?.inputSurface)
         imageStreamChannel.setStreamHandler(
                 object : EventChannel.StreamHandler {
                     override fun onListen(o: Any, imageStreamSink: EventSink) {
@@ -446,16 +453,21 @@ class Camera(
         orientationEventListener.disable()
     }
 
-    fun startStreaming(url: String?, result: MethodChannel.Result) {
+    fun startVideoStreaming(url: String?, bitrate: Int?, result: MethodChannel.Result) {
         if (url == null) {
             result.error("fileExists", "Must specify a url.", null)
             return
         }
         try {
             currentRetries = 0
-            prepareRtmpPublished(url)
+            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate)
             createCaptureSession(
-                    CameraDevice.TEMPLATE_RECORD, Runnable { rtmpCamera!!.startStream(url) }, rtmpCamera!!.inputSurface)
+                    CameraDevice.TEMPLATE_RECORD,
+                    Runnable { rtmpCamera!!.startStream(url) },
+                    rtmpCamera!!.inputSurface,
+                    mediaRecorder?.surface,
+                    imageStreamReader?.surface
+            )
             recordingRtmp = true
             result.success(null)
         } catch (e: CameraAccessException) {
@@ -569,7 +581,10 @@ class Camera(
         recordingProfile = CameraUtils.getBestAvailableCamcorderProfileForResolutionPreset(cameraName, preset)
         captureSize = Size(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
         previewSize = CameraUtils.computeBestPreviewSize(cameraName, preset)
-        streamSize = Size(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
+
+        // Data for streaming, different than the recording data.
+        val streamPreset = ResolutionPreset.valueOf(streamingPreset!!)
+        streamingProfile = CameraUtils.getBestAvailableCamcorderProfileForResolutionPreset(cameraName, streamPreset)
     }
 
     override fun onAuthSuccessRtmp() {
@@ -593,7 +608,7 @@ class Camera(
     override fun onConnectionFailedRtmp(reason: String) {
         if (rtmpCamera != null) {
             // Retry first.
-            for ( i in currentRetries..maxRetries) {
+            for (i in currentRetries..maxRetries) {
                 currentRetries = i
                 if (rtmpCamera!!.reTry(5000, reason)) {
                     activity!!.runOnUiThread {

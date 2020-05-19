@@ -294,10 +294,12 @@ class CameraController extends ValueNotifier<CameraValue> {
     this.description,
     this.resolutionPreset, {
     this.enableAudio = true,
+    this.streamingPreset = null,
   }) : super(const CameraValue.uninitialized());
 
   final CameraDescription description;
   final ResolutionPreset resolutionPreset;
+  final ResolutionPreset streamingPreset;
 
   /// Whether to include audio when recording a video.
   final bool enableAudio;
@@ -323,6 +325,8 @@ class CameraController extends ValueNotifier<CameraValue> {
         <String, dynamic>{
           'cameraName': description.name,
           'resolutionPreset': serializeResolutionPreset(resolutionPreset),
+          'streamingPreset':
+              serializeResolutionPreset(streamingPreset ?? resolutionPreset),
           'enableAudio': enableAudio,
         },
       );
@@ -688,7 +692,8 @@ class CameraController extends ValueNotifier<CameraValue> {
   /// The file can be read as soon as [stopVideoRecording] returns.
   ///
   /// Throws a [CameraException] if the capture fails.
-  Future<void> startVideoStreaming(String url) async {
+  Future<void> startVideoStreaming(String url,
+      {int bitrate = 1200 * 1024}) async {
     if (!value.isInitialized || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
@@ -710,9 +715,11 @@ class CameraController extends ValueNotifier<CameraValue> {
 
     try {
       await _channel.invokeMethod<void>(
-        'startVideoStreaming',
-        <String, dynamic>{'textureId': _textureId, 'url': url},
-      );
+          'startVideoStreaming', <String, dynamic>{
+        'textureId': _textureId,
+        'url': url,
+        'bitrate': bitrate
+      });
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
     } on PlatformException catch (e) {

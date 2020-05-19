@@ -64,7 +64,14 @@ internal class MethodCallHandlerImpl(
             }
             "startVideoStreaming" -> {
                 Log.i("Stuff", call.arguments.toString())
-                camera!!.startStreaming(call.argument("url"), result)
+                var bitrate: Int? = null
+                if (call.hasArgument("bitrate")) {
+                    bitrate = call.argument("bitrate")
+                }
+                camera!!.startVideoStreaming(
+                        call.argument("url"),
+                        bitrate,
+                        result)
             }
             "pauseStreaming" -> {
                 camera!!.pauseVideoStreaming(result)
@@ -126,6 +133,7 @@ internal class MethodCallHandlerImpl(
     private fun instantiateCamera(call: MethodCall, result: MethodChannel.Result) {
         val cameraName = call.argument<String>("cameraName")
         val resolutionPreset = call.argument<String>("resolutionPreset")
+        val streamingPreset = call.argument<String>("streamingPreset")
         val enableAudio = call.argument<Boolean>("enableAudio")!!
         val flutterSurfaceTexture = textureRegistry.createSurfaceTexture()
         val dartMessenger = DartMessenger(messenger, flutterSurfaceTexture.id())
@@ -135,6 +143,7 @@ internal class MethodCallHandlerImpl(
                 dartMessenger,
                 cameraName!!,
                 resolutionPreset,
+                streamingPreset,
                 enableAudio)
         camera!!.open(result)
     }
