@@ -1,3 +1,10 @@
+## 0.1.8
+
+* Can take a photo at the same time as streaming with out interrupting things.
+* Setting up to record and stream at the same time, right now it still stops
+  the video when the record starts.  Laying the ground work for all three
+  pieces to be independent.
+
 ## 0.1.7
 
 * Add in the ability to set the streaming preset on creation.

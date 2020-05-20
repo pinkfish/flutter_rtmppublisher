@@ -11,6 +11,7 @@ import 'package:camera_with_rtmp/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
+import 'package:wakelock/wakelock.dart';
 
 class CameraExampleHome extends StatefulWidget {
   @override
@@ -103,8 +104,13 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
                 color: Colors.black,
                 border: Border.all(
                   color: controller != null && controller.value.isRecordingVideo
-                      ? Colors.redAccent
-                      : Colors.grey,
+                      ? controller.value.isStreamingVideoRtmp
+                          ? Colors.redAccent
+                          : Colors.orangeAccent
+                      : controller != null &&
+                              controller.value.isStreamingVideoRtmp
+                          ? Colors.blueAccent
+                          : Colors.grey,
                   width: 3.0,
                 ),
               ),
@@ -309,6 +315,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
       if (controller.value.hasError) {
         showInSnackBar('Camera error ${controller.value.errorDescription}');
         _timer.cancel();
+        Wakelock.disable();
       }
     });
 
@@ -347,6 +354,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     startVideoStreaming().then((String url) {
       if (mounted) setState(() {});
       if (url != null) showInSnackBar('Streaming video to $url');
+      Wakelock.enable();
     });
   }
 
@@ -362,6 +370,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
         showInSnackBar('Video recorded to: $videoPath');
       });
     });
+    Wakelock.disable();
   }
 
   void onPauseButtonPressed() {
