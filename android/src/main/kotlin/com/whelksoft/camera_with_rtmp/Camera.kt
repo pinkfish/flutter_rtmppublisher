@@ -5,12 +5,15 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.graphics.ImageFormat
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
+import android.hardware.camera2.params.OutputConfiguration
 import android.media.CamcorderProfile
 import android.media.ImageReader
 import android.media.MediaRecorder
 import android.os.Build
+import android.util.Log
 import android.util.Size
 import android.view.OrientationEventListener
 import android.view.Surface
@@ -26,8 +29,6 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
-
-
 
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 class Camera(
@@ -46,11 +47,11 @@ class Camera(
     private val previewSize: Size
     private var cameraDevice: CameraDevice? = null
     private var cameraCaptureSession: CameraCaptureSession? = null
-    private var streamingCaptureSession: CameraCaptureSession? = null
     private var pictureImageReader: ImageReader? = null
     private var imageStreamReader: ImageReader? = null
     private var captureRequestBuilder: CaptureRequest.Builder? = null
-    private var streamingRequestBuilder: CaptureRequest.Builder? = null
+    private var sharedOutputConfiguration: OutputConfiguration? = null
+    private var sharedOutputSurface: Surface? = null
     private var mediaRecorder: MediaRecorder? = null
     private var recordingVideo = false
     private var recordingRtmp = false
@@ -89,7 +90,7 @@ class Camera(
         mediaRecorder!!.setOutputFile(outputFilePath)
         mediaRecorder!!.setOrientationHint(mediaOrientation)
         mediaRecorder!!.prepare()
-        print("Video recorder " + recordingProfile.videoFrameWidth + "x" + recordingProfile.videoFrameHeight + "  " + recordingProfile.videoFrameRate + " fps "
+        Log.v("Camera", "Video recorder " + recordingProfile.videoFrameWidth + "x" + recordingProfile.videoFrameHeight + "  " + recordingProfile.videoFrameRate + " fps "
         )
     }
 
@@ -119,15 +120,23 @@ class Camera(
     }
 
 
+    @RequiresApi(Build.VERSION_CODES.O)
     @SuppressLint("MissingPermission")
     @Throws(CameraAccessException::class)
     fun open(result: MethodChannel.Result) {
         pictureImageReader = ImageReader.newInstance(
                 captureSize.width, captureSize.height, ImageFormat.JPEG, 2)
 
-        // Used to steam image byte data to dart side.
         imageStreamReader = ImageReader.newInstance(
                 previewSize.width, previewSize.height, ImageFormat.YUV_420_888, 2)
+
+        val sharedOutputTexture = SurfaceTexture( /*random texture ID*/5)
+        sharedOutputTexture.setDefaultBufferSize(captureSize.width, captureSize.height)
+        sharedOutputSurface = Surface(sharedOutputTexture)
+        sharedOutputConfiguration = OutputConfiguration(OutputConfiguration.SURFACE_GROUP_ID_NONE, sharedOutputSurface)
+        sharedOutputConfiguration!!.enableSurfaceSharing()
+
+        // Used to steam image byte data to dart side.
         cameraManager.openCamera(
                 cameraName,
                 object : CameraDevice.StateCallback() {
@@ -190,6 +199,7 @@ class Camera(
                     "fileExists", "File at path '$filePath' already exists. Cannot overwrite.", null)
             return
         }
+
         pictureImageReader!!.setOnImageAvailableListener(
                 { reader: ImageReader ->
                     try {
@@ -204,103 +214,64 @@ class Camera(
                 },
                 null)
         try {
-            val requestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
-            val surfaceList: MutableList<Surface> = ArrayList()
-            surfaceList.add(pictureImageReader!!.surface)
-            requestBuilder.addTarget(pictureImageReader!!.surface)
-            // Start the session
-            cameraDevice!!.createCaptureSession(surfaceList, object : CameraCaptureSession.StateCallback() {
-                override fun onConfigured(session: CameraCaptureSession) {
-                    try {
-                        if (cameraDevice == null) {
-                            dartMessenger.send(
-                                    DartMessenger.EventType.ERROR, "The camera was closed during configuration.")
-                            return
+            // Create a new capture session with all this stuff in it.
+            val captureBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+            captureBuilder.addTarget(pictureImageReader!!.surface)
+            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, mediaOrientation)
+            cameraCaptureSession!!.capture(
+                    captureBuilder.build(),
+                    object : CaptureCallback() {
+                        override fun onCaptureFailed(
+                                session: CameraCaptureSession,
+                                request: CaptureRequest,
+                                failure: CaptureFailure) {
+                            val reason: String
+                            reason = when (failure.reason) {
+                                CaptureFailure.REASON_ERROR -> "An error happened in the framework"
+                                CaptureFailure.REASON_FLUSHED -> "The capture has failed due to an abortCaptures() call"
+                                else -> "Unknown reason"
+                            }
+                            result.error("captureFailure", reason, null)
                         }
-                        requestBuilder.set(
-                                CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
-                        session.capture(
-                                requestBuilder.build(),
-                                object : CaptureCallback() {
-                                    override fun onCaptureFailed(
-                                            session: CameraCaptureSession,
-                                            request: CaptureRequest,
-                                            failure: CaptureFailure) {
-                                        val reason: String
-                                        session.close()
-                                        reason = when (failure.reason) {
-                                            CaptureFailure.REASON_ERROR -> "An error happened in the framework"
-                                            CaptureFailure.REASON_FLUSHED -> "The capture has failed due to an abortCaptures() call"
-                                            else -> "Unknown reason"
-                                        }
-                                        result.error("captureFailure", reason, null)
-                                    }
 
-                                    // Close out the session once we have captured stuff.
-                                    override fun onCaptureSequenceCompleted( session: CameraCaptureSession, sequenceId: Int, frameNumber: Long) {
-                                        session.close()
-                                    }
-                                },
-                                null)
-                    } catch (e: CameraAccessException) {
-                        dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
-                        session.close()
-                    } catch (e: IllegalStateException) {
-                        dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
-                        session.close()
-                    } catch (e: IllegalArgumentException) {
-                        dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
-                        session.close()
-                    }
-                }
-
-                override fun onConfigureFailed(cameraCaptureSession: CameraCaptureSession) {
-                    dartMessenger.send(
-                            DartMessenger.EventType.ERROR, "Failed to configure camera session.")
-                }
-
-            }, null)
+                        // Close out the session once we have captured stuff.
+                        override fun onCaptureSequenceCompleted(session: CameraCaptureSession, sequenceId: Int, frameNumber: Long) {
+                            session.close()
+                        }
+                    },
+                    null)
         } catch (e: CameraAccessException) {
-            result.error("cameraAccess", e.message, null)
+            result.error("cameraAccess", e.message, null);
         }
     }
 
+
+    @RequiresApi(Build.VERSION_CODES.N)
     @Throws(CameraAccessException::class)
-    private fun createCaptureSession(
-            templateType: Int, onSuccessCallback: Runnable, useFlutterSurface: Boolean, successCallback: (CameraCaptureSession) -> Unit, vararg surfaces: Surface?) : CaptureRequest.Builder {
-        // Close any existing capture session.
-        //closeCaptureSession(streaming)
+    private fun createCaptureSession() {
+        // Close the old session first.
+        closeCaptureSession()
 
+        Log.v("Camera", "createCaptureSession ")
         // Create a new capture builder.
-        val requestBuilder = cameraDevice!!.createCaptureRequest(templateType)
-        /*
-        if (streaming) {
-            streamingRequestBuilder = requestBuilder
-        } else {
-            captureRequestBuilder = requestBuilder
-        }
-
-         */
+        val requestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
 
         // Build Flutter surface to render to
-        var flutterSurface: Surface? = null
-        if (!useFlutterSurface) {
-            val surfaceTexture = flutterTexture.surfaceTexture()
-            surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
-            flutterSurface = Surface(surfaceTexture)
-            requestBuilder.addTarget(flutterSurface)
-        }
-        val remainingSurfacesNull = Arrays.asList(*surfaces)
-        val remainingSurfaces = remainingSurfacesNull.filterNotNull()
-        if (templateType != CameraDevice.TEMPLATE_PREVIEW) {
-            // If it is not preview mode, add all surfaces as targets.
-            for (surface in remainingSurfaces) {
-                requestBuilder.addTarget(surface)
-            }
-        }
+        val surfaceTexture = flutterTexture.surfaceTexture()
+        surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
+        val flutterSurface = Surface(surfaceTexture)
+
+        // Collect all surfaces we want to render to.
+        val surfaceList: MutableList<OutputConfiguration> = ArrayList()
+        surfaceList.add(OutputConfiguration(flutterSurface));
+        surfaceList.add(sharedOutputConfiguration!!)
+        surfaceList.add(OutputConfiguration(pictureImageReader!!.surface))
+        requestBuilder.addTarget(flutterSurface)
+        requestBuilder.addTarget(sharedOutputSurface!!)
 
         // Prepare the callback
         val callback: CameraCaptureSession.StateCallback = object : CameraCaptureSession.StateCallback() {
+            @RequiresApi(Build.VERSION_CODES.O)
             override fun onConfigured(session: CameraCaptureSession) {
                 try {
                     if (cameraDevice == null) {
@@ -308,11 +279,12 @@ class Camera(
                                 DartMessenger.EventType.ERROR, "The camera was closed during configuration.")
                         return
                     }
-                    successCallback(session)
+                    Log.v("Camera", "open successful " )
+                    session.finalizeOutputConfigurations(surfaceList)
                     requestBuilder.set(
                             CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
                     session.setRepeatingRequest(requestBuilder.build(), null, null)
-                    onSuccessCallback?.run()
+                    cameraCaptureSession = session
                 } catch (e: CameraAccessException) {
                     dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
                 } catch (e: IllegalStateException) {
@@ -328,17 +300,12 @@ class Camera(
             }
         }
 
-        // Collect all surfaces we want to render to.
-        val surfaceList: MutableList<Surface> = ArrayList()
-        if (flutterSurface != null && !useFlutterSurface) {
-            surfaceList.add(flutterSurface!!)
-        }
-        surfaceList.addAll(remainingSurfaces)
         // Start the session
-        cameraDevice!!.createCaptureSession(surfaceList, callback, null)
-        return requestBuilder
+        cameraDevice!!.createCaptureSessionByOutputConfigurations(surfaceList, callback, null)
+        captureRequestBuilder = requestBuilder
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     fun startVideoRecording(filePath: String, result: MethodChannel.Result) {
         if (File(filePath).exists()) {
             result.error("fileExists", "File at path '$filePath' already exists.", null)
@@ -347,15 +314,9 @@ class Camera(
         try {
             prepareMediaRecorder(filePath)
             recordingVideo = true
-            captureRequestBuilder = createCaptureSession(
-                    CameraDevice.TEMPLATE_RECORD,
-                    Runnable { mediaRecorder!!.start() },
-                    false,
-                    {
-                        cameraCaptureSession = it;
-                    },
-                    mediaRecorder!!.surface
-)
+            sharedOutputConfiguration!!.addSurface(mediaRecorder!!.surface)
+            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
+            mediaRecorder!!.start()
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -364,16 +325,20 @@ class Camera(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     fun stopVideoRecording(result: MethodChannel.Result) {
         if (!recordingVideo) {
             result.success(null)
             return
         }
         try {
+            sharedOutputConfiguration!!.removeSurface(mediaRecorder!!.surface)
+            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
+
             recordingVideo = false
             mediaRecorder!!.stop()
             mediaRecorder!!.reset()
-            startPreview()
+            mediaRecorder = null
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -421,23 +386,19 @@ class Camera(
         result.success(null)
     }
 
+    @RequiresApi(Build.VERSION_CODES.N)
     @Throws(CameraAccessException::class)
     fun startPreview() {
-        captureRequestBuilder= createCaptureSession(CameraDevice.TEMPLATE_PREVIEW, Runnable {}, false,
-                { cameraCaptureSession =it   },null)
+        createCaptureSession()
     }
 
     @Throws(CameraAccessException::class)
+    @RequiresApi(Build.VERSION_CODES.O)
     fun startPreviewWithImageStream(imageStreamChannel: EventChannel) {
-        captureRequestBuilder = createCaptureSession(
-                CameraDevice.TEMPLATE_RECORD,
-                Runnable{},
-                false,
-                {
-                    cameraCaptureSession = it;
-                },
-                imageStreamReader!!.surface,
-                mediaRecorder?.surface)
+        imageStreamReader = ImageReader.newInstance(
+                previewSize.width, previewSize.height, ImageFormat.YUV_420_888, 2)
+        sharedOutputConfiguration!!.addSurface(imageStreamReader!!.surface)
+
         imageStreamChannel.setStreamHandler(
                 object : EventChannel.StreamHandler {
                     override fun onListen(o: Any, imageStreamSink: EventSink) {
@@ -476,22 +437,16 @@ class Camera(
                 null)
     }
 
-    private fun closeCaptureSession(streaming: Boolean) {
-        if (cameraCaptureSession != null && !streaming) {
-            print("Close cameraCaptureSession")
+    private fun closeCaptureSession() {
+        if (cameraCaptureSession != null) {
+            Log.v("Camera", "Close recoordingCaptureSession")
             cameraCaptureSession!!.close()
             cameraCaptureSession = null
-        }
-        if (streamingCaptureSession != null && streaming) {
-            print("Close streamingCaptureSession")
-            streamingCaptureSession!!.close()
-            streamingCaptureSession = null
         }
     }
 
     fun close() {
-        closeCaptureSession(true)
-        closeCaptureSession(false)
+        closeCaptureSession()
         if (cameraDevice != null) {
             cameraDevice!!.close()
             cameraDevice = null
@@ -523,23 +478,20 @@ class Camera(
         orientationEventListener.disable()
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     fun startVideoStreaming(url: String?, bitrate: Int?, result: MethodChannel.Result) {
         if (url == null) {
             result.error("fileExists", "Must specify a url.", null)
             return
         }
         try {
+            // Setup the rtmp session
             currentRetries = 0
             prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate)
-            streamingRequestBuilder = createCaptureSession(
-                    CameraDevice.TEMPLATE_RECORD,
-                    Runnable { rtmpCamera!!.startStream(url) },
-                    true,
-                    {
-                        streamingCaptureSession = it;
-                    },
-                    rtmpCamera!!.inputSurface
-            )
+
+            // Start capturing from the camera.
+            sharedOutputConfiguration!!.addSurface(rtmpCamera!!.inputSurface)
+            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
             recordingRtmp = true
             result.success(null)
         } catch (e: CameraAccessException) {
@@ -549,17 +501,20 @@ class Camera(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     fun stopVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
             result.success(null)
             return
         }
         try {
+            sharedOutputConfiguration!!.removeSurface(rtmpCamera!!.inputSurface)
+            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
+
             currentRetries = 0
             recordingRtmp = false
             publishUrl = null
             rtmpCamera!!.stopStream()
-            startPreview()
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoStreamingFailed", e.message, null)
@@ -568,6 +523,7 @@ class Camera(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     fun pauseVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
             result.success(null)
@@ -575,6 +531,9 @@ class Camera(
         }
         try {
             currentRetries = 0
+            sharedOutputConfiguration!!.removeSurface(rtmpCamera!!.inputSurface)
+            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 rtmpCamera!!.stopStream()
             } else {
@@ -594,31 +553,32 @@ class Camera(
             ret["cacheSize"] = rtmpCamera!!.cacheSize
             ret["sentAudioFrames"] = rtmpCamera!!.sentAudioFrames
             ret["sentVideoFrames"] = rtmpCamera!!.sentVideoFrames
-            ret["droppedAudioFrames"] = rtmpCamera!!.droppedAudioFrames
+            if (rtmpCamera!!.droppedAudioFrames == null) {
+                ret["droppedAudioFrames"] = 0
+            } else {
+                ret["droppedAudioFrames"] = rtmpCamera!!.droppedAudioFrames
+            }
             ret["droppedVideoFrames"] = rtmpCamera!!.droppedVideoFrames
             ret["isAudioMuted"] = rtmpCamera!!.isAudioMuted
-            ret["bitRate"] = rtmpCamera!!.getBitrate()
+            ret["bitrate"] = rtmpCamera!!.getBitrate()
             ret["width"] = rtmpCamera!!.getStreamWidth()
             ret["height"] = rtmpCamera!!.getStreamHeight()
+            ret["fps"] = rtmpCamera!!.getFps()
             result.success(ret)
         } else {
             result.error("noStats", "Not streaming anything", null)
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     fun resumeVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
             result.success(null)
             return
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                rtmpCamera!!.startStream(publishUrl!!)
-            } else {
-                result.error(
-                        "videoStreamingFailed", "resumeVideoStreaming requires Android API +24.", null)
-                return
-            }
+            sharedOutputConfiguration!!.addSurface(rtmpCamera!!.inputSurface)
+            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
         } catch (e: IllegalStateException) {
             result.error("videoStreamingFailed", e.message, null)
             return

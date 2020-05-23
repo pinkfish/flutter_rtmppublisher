@@ -39,11 +39,12 @@ import java.util.*
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData {
+class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback {
     protected val videoEncoder: VideoEncoder
     private var microphoneManager: MicrophoneManager
     private var audioEncoder: AudioEncoder
     private var srsFlvMuxer: SrsFlvMuxer
+    private var curFps: Int
 
     /**
      * Get stream state.
@@ -60,6 +61,8 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
         microphoneManager = MicrophoneManager(this)
         audioEncoder = AudioEncoder(this)
         srsFlvMuxer = SrsFlvMuxer(connectChecker)
+        fpsListener.setCallback(this)
+        curFps = 0
     }
 
     /**
@@ -174,7 +177,7 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
         startStreamRtp(url)
     }
 
-    private fun startEncoders() {
+    fun startEncoders() {
         videoEncoder!!.start()
         audioEncoder!!.start()
         microphoneManager!!.start()
@@ -316,7 +319,11 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
 
 
     fun getBitrate(): Int {
-        return videoEncoder!!.bitRate
+        val rate = videoEncoder!!.bitRate
+        if (rate == null) {
+            return 0
+        }
+        return rate
     }
 
     fun getResolutionValue(): Int {
@@ -331,7 +338,13 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
         return videoEncoder!!.height
     }
 
-   /**
+    fun getFps(): Int {
+        return curFps
+    }
+
+
+
+    /**
      * Set video bitrate of H264 in bits per second while stream.
      *
      * @param bitrate H264 in bits per second.
@@ -388,6 +401,10 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
 
     fun getH264DataRtp(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         srsFlvMuxer.sendVideo(h264Buffer, info)
+    }
+
+    override fun onFps(fps: Int) {
+        curFps = fps
     }
 
 }
