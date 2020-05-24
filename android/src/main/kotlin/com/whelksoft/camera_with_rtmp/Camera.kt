@@ -1,6 +1,5 @@
 package com.whelksoft.camera_with_rtmp
 
-
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -242,11 +241,13 @@ class Camera(
         closeCaptureSession()
 
         Log.v("Camera", "createCaptureSession ")
+
         // Create a new capture builder.
         val requestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
 
         // Collect all surfaces we want to render to.
         val surfaceList: MutableList<Surface> = ArrayList()
+
         // Build Flutter surface to render to
         val surfaceTexture = flutterTexture.surfaceTexture()
         surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
@@ -255,11 +256,9 @@ class Camera(
         requestBuilder.addTarget(flutterSurface)
         surfaceList.addAll(surfaces)
         surfaceList.add(pictureImageReader!!.surface)
-        if (templateType != CameraDevice.TEMPLATE_PREVIEW) {
             for (s in surfaces) {
                 requestBuilder.addTarget(s)
             }
-        }
 
         // Prepare the callback
         val callback: CameraCaptureSession.StateCallback = object : CameraCaptureSession.StateCallback() {

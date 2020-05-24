@@ -216,9 +216,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
         IconButton(
           icon: const Icon(Icons.camera_alt),
           color: Colors.blue,
-          onPressed: controller != null &&
-                  controller.value.isInitialized &&
-                  !controller.value.isRecordingVideo
+          onPressed: controller != null && controller.value.isInitialized
               ? onTakePictureButtonPressed
               : null,
         ),
@@ -227,7 +225,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
           color: Colors.blue,
           onPressed: controller != null &&
                   controller.value.isInitialized &&
-                  !controller.value.isRecordingVideo
+                  !controller.value.isRecordingVideo &&
+                  !controller.value.isStreamingVideoRtmp
               ? onVideoRecordButtonPressed
               : null,
         ),
@@ -236,8 +235,19 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
           color: Colors.blue,
           onPressed: controller != null &&
                   controller.value.isInitialized &&
-                  !controller.value.isStreamingVideoRtmp
+                  !controller.value.isStreamingVideoRtmp &&
+                  !controller.value.isRecordingVideo
               ? onVideoStreamingButtonPressed
+              : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.ondemand_video),
+          color: Colors.blue,
+          onPressed: controller != null &&
+                  controller.value.isInitialized &&
+                  !controller.value.isStreamingVideoRtmp &&
+                  !controller.value.isRecordingVideo
+              ? onRecordingAndVideoStreamingButtonPressed
               : null,
         ),
         IconButton(
@@ -247,8 +257,11 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
           color: Colors.blue,
           onPressed: controller != null &&
                   controller.value.isInitialized &&
-                  controller.value.isRecordingVideo
-              ? (controller != null && controller.value.isRecordingPaused
+                  (controller.value.isRecordingVideo ||
+                      controller.value.isStreamingVideoRtmp)
+              ? (controller != null &&
+                      (controller.value.isRecordingPaused ||
+                          controller.value.isStreamingPaused)
                   ? onResumeButtonPressed
                   : onPauseButtonPressed)
               : null,
@@ -258,7 +271,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
           color: Colors.red,
           onPressed: controller != null &&
                   controller.value.isInitialized &&
-                  controller.value.isRecordingVideo
+                  (controller.value.isRecordingVideo ||
+                      controller.value.isStreamingVideoRtmp)
               ? onStopButtonPressed
               : null,
         )
@@ -314,7 +328,10 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
       if (mounted) setState(() {});
       if (controller.value.hasError) {
         showInSnackBar('Camera error ${controller.value.errorDescription}');
-        _timer.cancel();
+        if (_timer != null) {
+          _timer.cancel();
+          _timer = null;
+        }
         Wakelock.disable();
       }
     });
@@ -358,17 +375,18 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     });
   }
 
+  void onRecordingAndVideoStreamingButtonPressed() {
+    startRecordingAndVideoStreaming().then((String url) {
+      if (mounted) setState(() {});
+      if (url != null) showInSnackBar('Recording streaming video to $url');
+      Wakelock.enable();
+    });
+  }
+
   void onStopButtonPressed() {
-    stopVideoStreaming().then((_) {
-      stopVideoRecording().then((_) {
-        if (mounted) setState(() {});
-        showInSnackBar('Video recorded to: $videoPath');
-      });
-    }).catchError((_) {
-      stopVideoRecording().then((_) {
-        if (mounted) setState(() {});
-        showInSnackBar('Video recorded to: $videoPath');
-      });
+    stopVideoRecording().then((_) {
+      if (mounted) setState(() {});
+      showInSnackBar('Video recorded to: $videoPath');
     });
     Wakelock.disable();
   }
@@ -419,7 +437,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     await Directory(dirPath).create(recursive: true);
     final String filePath = '$dirPath/${timestamp()}.mp4';
 
-    if (controller.value.isRecordingVideo) {
+    if (controller.value.isRecordingVideo ||
+        controller.value.isStreamingVideoRtmp) {
       // A recording is already started, do nothing.
       return null;
     }
@@ -435,7 +454,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   }
 
   Future<void> stopVideoRecording() async {
-    if (!controller.value.isRecordingVideo) {
+    if (!controller.value.isRecordingVideo ||
+        !controller.value.isStreamingVideoRtmp) {
       return null;
     }
 
@@ -475,16 +495,11 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     }
   }
 
-  Future<String> startVideoStreaming() async {
-    if (!controller.value.isInitialized) {
-      showInSnackBar('Error: select a camera first.');
-      return null;
-    }
-
+  Future<String> _getUrl() async {
     // Open up a dialog for the url
     String result = _textFieldController.text;
 
-    String myUrl = await showDialog(
+    return await showDialog(
         context: context,
         builder: (context) {
           return AlertDialog(
@@ -511,11 +526,52 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
             ],
           );
         });
+  }
 
-    if (controller.value.isStreamingVideoRtmp) {
-      // A recording is already started, do nothing.
+  Future<String> startRecordingAndVideoStreaming() async {
+    if (!controller.value.isInitialized) {
+      showInSnackBar('Error: select a camera first.');
       return null;
     }
+
+    if (controller.value.isStreamingVideoRtmp ||
+        controller.value.isStreamingVideoRtmp) {
+      return null;
+    }
+
+    String myUrl = await _getUrl();
+
+    try {
+      if (_timer != null) {
+        _timer.cancel();
+        _timer = null;
+      }
+      url = myUrl;
+      await controller.startVideoRecordingAndStreaming(videoPath, url);
+      _timer = Timer.periodic(Duration(seconds: 1), (timer) async {
+        var stats = await controller.getStreamStatistics();
+        print(stats);
+      });
+    } on CameraException catch (e) {
+      _showCameraException(e);
+      return null;
+    }
+    return url;
+  }
+
+  Future<String> startVideoStreaming() async {
+    if (!controller.value.isInitialized) {
+      showInSnackBar('Error: select a camera first.');
+      return null;
+    }
+
+    if (controller.value.isStreamingVideoRtmp ||
+        controller.value.isStreamingVideoRtmp) {
+      return null;
+    }
+
+    // Open up a dialog for the url
+    String myUrl = await _getUrl();
 
     try {
       if (_timer != null) {

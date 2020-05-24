@@ -468,6 +468,12 @@ class CameraController extends ValueNotifier<CameraValue> {
         'startImageStream was called while a video is being recorded.',
       );
     }
+    if (value.isStreamingVideoRtmp) {
+      throw CameraException(
+        'A video recording is already started.',
+        'startImageStream was called while a video is being recorded.',
+      );
+    }
     if (value.isStreamingImages) {
       throw CameraException(
         'A camera has started streaming images.',
@@ -500,12 +506,6 @@ class CameraController extends ValueNotifier<CameraValue> {
       throw CameraException(
         'Uninitialized CameraController',
         'stopImageStream was called on uninitialized CameraController.',
-      );
-    }
-    if (value.isRecordingVideo) {
-      throw CameraException(
-        'A video recording is already started.',
-        'stopImageStream was called while a video is being recorded.',
       );
     }
     if (!value.isStreamingImages) {
@@ -743,7 +743,6 @@ class CameraController extends ValueNotifier<CameraValue> {
         'startVideoStreaming was called on uninitialized CameraController',
       );
     }
-
     if (value.isRecordingVideo) {
       throw CameraException(
         'A video recording is already started.',
@@ -785,7 +784,13 @@ class CameraController extends ValueNotifier<CameraValue> {
         'stopVideoStreaming was called on uninitialized CameraController',
       );
     }
-    if (!value.isStreamingVideoRtmp) {
+    if (value.isRecordingVideo) {
+      throw CameraException(
+        'No video is recording',
+        'stopVideoStreaming was called when no video is recording.',
+      );
+    }
+    if (value.isStreamingVideoRtmp) {
       throw CameraException(
         'No video is recording',
         'stopVideoStreaming was called when no video is recording.',
