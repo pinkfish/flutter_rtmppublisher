@@ -1,3 +1,9 @@
+## 0.1.9
+
+* Added in a method to record and stream at the same time.
+* Fixed issues with streaming/previews not working correctly
+* Added in better error handling when the recording/streaming is happening.
+
 ## 0.1.8
 
 * Can take a photo at the same time as streaming with out interrupting things.
