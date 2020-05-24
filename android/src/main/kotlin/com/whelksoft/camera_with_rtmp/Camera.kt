@@ -256,9 +256,9 @@ class Camera(
         requestBuilder.addTarget(flutterSurface)
         surfaceList.addAll(surfaces)
         surfaceList.add(pictureImageReader!!.surface)
-            for (s in surfaces) {
-                requestBuilder.addTarget(s)
-            }
+        for (s in surfaces) {
+            requestBuilder.addTarget(s)
+        }
 
         // Prepare the callback
         val callback: CameraCaptureSession.StateCallback = object : CameraCaptureSession.StateCallback() {
@@ -317,16 +317,26 @@ class Camera(
         }
     }
 
-    fun stopVideoRecording(result: MethodChannel.Result) {
-        if (!recordingVideo) {
+    fun stopVideoRecordingOrStreaming(result: MethodChannel.Result) {
+        if (!recordingVideo && !recordingRtmp) {
             result.success(null)
             return
         }
         try {
-            recordingVideo = false
-            mediaRecorder!!.stop()
-            mediaRecorder!!.reset()
-            mediaRecorder = null
+            if (recordingVideo) {
+                recordingVideo = false
+                mediaRecorder!!.stop()
+                mediaRecorder!!.reset()
+                mediaRecorder = null
+            }
+
+            if (recordingRtmp) {
+                currentRetries = 0
+                recordingRtmp = false
+                publishUrl = null
+                rtmpCamera!!.stopStream()
+            }
+
             startPreview()
             result.success(null)
         } catch (e: CameraAccessException) {
@@ -533,25 +543,6 @@ class Camera(
         }
     }
 
-
-    fun stopVideoStreaming(result: MethodChannel.Result) {
-        if (!recordingRtmp) {
-            result.success(null)
-            return
-        }
-        try {
-            currentRetries = 0
-            recordingRtmp = false
-            publishUrl = null
-            rtmpCamera!!.stopStream()
-            startPreview()
-            result.success(null)
-        } catch (e: CameraAccessException) {
-            result.error("videoStreamingFailed", e.message, null)
-        } catch (e: IllegalStateException) {
-            result.error("videoStreamingFailed", e.message, null)
-        }
-    }
 
     fun pauseVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
