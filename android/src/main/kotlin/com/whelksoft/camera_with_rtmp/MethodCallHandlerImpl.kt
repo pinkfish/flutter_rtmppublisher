@@ -73,6 +73,18 @@ internal class MethodCallHandlerImpl(
                         bitrate,
                         result)
             }
+            "startVideoRecordingAndStreaming" -> {
+                Log.i("Stuff", call.arguments.toString())
+                var bitrate: Int? = null
+                if (call.hasArgument("bitrate")) {
+                    bitrate = call.argument("bitrate")
+                }
+                camera!!.startVideoRecordingAndStreaming(
+                        call.argument("filePath")!!,
+                        call.argument("url"),
+                        bitrate,
+                        result)
+            }
             "pauseStreaming" -> {
                 camera!!.pauseVideoStreaming(result)
             }

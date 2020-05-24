@@ -50,8 +50,6 @@ class Camera(
     private var pictureImageReader: ImageReader? = null
     private var imageStreamReader: ImageReader? = null
     private var captureRequestBuilder: CaptureRequest.Builder? = null
-    private var sharedOutputConfiguration: OutputConfiguration? = null
-    private var sharedOutputSurface: Surface? = null
     private var mediaRecorder: MediaRecorder? = null
     private var recordingVideo = false
     private var recordingRtmp = false
@@ -120,21 +118,11 @@ class Camera(
     }
 
 
-    @RequiresApi(Build.VERSION_CODES.O)
     @SuppressLint("MissingPermission")
     @Throws(CameraAccessException::class)
     fun open(result: MethodChannel.Result) {
         pictureImageReader = ImageReader.newInstance(
                 captureSize.width, captureSize.height, ImageFormat.JPEG, 2)
-
-        imageStreamReader = ImageReader.newInstance(
-                previewSize.width, previewSize.height, ImageFormat.YUV_420_888, 2)
-
-        val sharedOutputTexture = SurfaceTexture( /*random texture ID*/5)
-        sharedOutputTexture.setDefaultBufferSize(captureSize.width, captureSize.height)
-        sharedOutputSurface = Surface(sharedOutputTexture)
-        sharedOutputConfiguration = OutputConfiguration(OutputConfiguration.SURFACE_GROUP_ID_NONE, sharedOutputSurface)
-        sharedOutputConfiguration!!.enableSurfaceSharing()
 
         // Used to steam image byte data to dart side.
         cameraManager.openCamera(
@@ -246,9 +234,10 @@ class Camera(
     }
 
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Throws(CameraAccessException::class)
-    private fun createCaptureSession() {
+    private fun createCaptureSession(
+            templateType: Int, onSuccessCallback: Runnable, vararg surfaces: Surface
+    ) {
         // Close the old session first.
         closeCaptureSession()
 
@@ -256,18 +245,21 @@ class Camera(
         // Create a new capture builder.
         val requestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
 
+        // Collect all surfaces we want to render to.
+        val surfaceList: MutableList<Surface> = ArrayList()
         // Build Flutter surface to render to
         val surfaceTexture = flutterTexture.surfaceTexture()
         surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
         val flutterSurface = Surface(surfaceTexture)
-
-        // Collect all surfaces we want to render to.
-        val surfaceList: MutableList<OutputConfiguration> = ArrayList()
-        surfaceList.add(OutputConfiguration(flutterSurface));
-        surfaceList.add(sharedOutputConfiguration!!)
-        surfaceList.add(OutputConfiguration(pictureImageReader!!.surface))
+        surfaceList.add(flutterSurface)
         requestBuilder.addTarget(flutterSurface)
-        requestBuilder.addTarget(sharedOutputSurface!!)
+        surfaceList.addAll(surfaces)
+        surfaceList.add(pictureImageReader!!.surface)
+        if (templateType != CameraDevice.TEMPLATE_PREVIEW) {
+            for (s in surfaces) {
+                requestBuilder.addTarget(s)
+            }
+        }
 
         // Prepare the callback
         val callback: CameraCaptureSession.StateCallback = object : CameraCaptureSession.StateCallback() {
@@ -279,12 +271,12 @@ class Camera(
                                 DartMessenger.EventType.ERROR, "The camera was closed during configuration.")
                         return
                     }
-                    Log.v("Camera", "open successful " )
-                    session.finalizeOutputConfigurations(surfaceList)
+                    Log.v("Camera", "open successful ")
                     requestBuilder.set(
                             CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
                     session.setRepeatingRequest(requestBuilder.build(), null, null)
                     cameraCaptureSession = session
+                    onSuccessCallback.run()
                 } catch (e: CameraAccessException) {
                     dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
                 } catch (e: IllegalStateException) {
@@ -301,11 +293,10 @@ class Camera(
         }
 
         // Start the session
-        cameraDevice!!.createCaptureSessionByOutputConfigurations(surfaceList, callback, null)
+        cameraDevice!!.createCaptureSession(surfaceList, callback, null)
         captureRequestBuilder = requestBuilder
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
     fun startVideoRecording(filePath: String, result: MethodChannel.Result) {
         if (File(filePath).exists()) {
             result.error("fileExists", "File at path '$filePath' already exists.", null)
@@ -314,9 +305,11 @@ class Camera(
         try {
             prepareMediaRecorder(filePath)
             recordingVideo = true
-            sharedOutputConfiguration!!.addSurface(mediaRecorder!!.surface)
-            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
-            mediaRecorder!!.start()
+            createCaptureSession(
+                    CameraDevice.TEMPLATE_RECORD,
+                    Runnable { mediaRecorder!!.start() },
+                    mediaRecorder!!.surface
+            )
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -325,20 +318,17 @@ class Camera(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
     fun stopVideoRecording(result: MethodChannel.Result) {
         if (!recordingVideo) {
             result.success(null)
             return
         }
         try {
-            sharedOutputConfiguration!!.removeSurface(mediaRecorder!!.surface)
-            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
-
             recordingVideo = false
             mediaRecorder!!.stop()
             mediaRecorder!!.reset()
             mediaRecorder = null
+            startPreview()
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -386,19 +376,20 @@ class Camera(
         result.success(null)
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Throws(CameraAccessException::class)
     fun startPreview() {
-        createCaptureSession()
+        createCaptureSession(CameraDevice.TEMPLATE_PREVIEW, Runnable { })
     }
 
     @Throws(CameraAccessException::class)
-    @RequiresApi(Build.VERSION_CODES.O)
     fun startPreviewWithImageStream(imageStreamChannel: EventChannel) {
         imageStreamReader = ImageReader.newInstance(
                 previewSize.width, previewSize.height, ImageFormat.YUV_420_888, 2)
-        sharedOutputConfiguration!!.addSurface(imageStreamReader!!.surface)
 
+        createCaptureSession(
+                CameraDevice.TEMPLATE_RECORD,
+                Runnable {},
+                imageStreamReader!!.surface)
         imageStreamChannel.setStreamHandler(
                 object : EventChannel.StreamHandler {
                     override fun onListen(o: Any, imageStreamSink: EventSink) {
@@ -440,7 +431,11 @@ class Camera(
     private fun closeCaptureSession() {
         if (cameraCaptureSession != null) {
             Log.v("Camera", "Close recoordingCaptureSession")
-            cameraCaptureSession!!.close()
+            try {
+                cameraCaptureSession!!.close()
+            } catch (e: CameraAccessException) {
+                Log.w("RtmpCamera", "Error from camera", e)
+            }
             cameraCaptureSession = null
         }
     }
@@ -465,7 +460,7 @@ class Camera(
             mediaRecorder = null
         }
         if (rtmpCamera != null) {
-            rtmpCamera!!.stopStream();
+            rtmpCamera!!.stopStream()
             rtmpCamera = null
             bitrateAdapter = null
             publishUrl = null
@@ -478,7 +473,6 @@ class Camera(
         orientationEventListener.disable()
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
     fun startVideoStreaming(url: String?, bitrate: Int?, result: MethodChannel.Result) {
         if (url == null) {
             result.error("fileExists", "Must specify a url.", null)
@@ -490,8 +484,11 @@ class Camera(
             prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate)
 
             // Start capturing from the camera.
-            sharedOutputConfiguration!!.addSurface(rtmpCamera!!.inputSurface)
-            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
+            createCaptureSession(
+                    CameraDevice.TEMPLATE_RECORD,
+                    Runnable { rtmpCamera!!.startStream(url) },
+                    rtmpCamera!!.inputSurface
+            )
             recordingRtmp = true
             result.success(null)
         } catch (e: CameraAccessException) {
@@ -501,20 +498,54 @@ class Camera(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
+    fun startVideoRecordingAndStreaming(filePath: String, url: String?, bitrate: Int?, result: MethodChannel.Result) {
+        if (File(filePath).exists()) {
+            result.error("fileExists", "File at path '$filePath' already exists.", null)
+            return
+        }
+        if (url == null) {
+            result.error("fileExists", "Must specify a url.", null)
+            return
+        }
+        try {
+            // Setup the rtmp session
+            currentRetries = 0
+            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate)
+
+            // Setup the recorder.
+            prepareMediaRecorder(filePath)
+            recordingVideo = true
+            recordingRtmp = true
+
+            createCaptureSession(
+                    CameraDevice.TEMPLATE_RECORD,
+                    Runnable {
+                        mediaRecorder!!.start()
+                        rtmpCamera!!.startStream(url)
+                    },
+                    mediaRecorder!!.surface,
+                    rtmpCamera!!.inputSurface
+            )
+            result.success(null)
+        } catch (e: CameraAccessException) {
+            result.error("videoRecordingFailed", e.message, null)
+        } catch (e: IOException) {
+            result.error("videoRecordingFailed", e.message, null)
+        }
+    }
+
+
     fun stopVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
             result.success(null)
             return
         }
         try {
-            sharedOutputConfiguration!!.removeSurface(rtmpCamera!!.inputSurface)
-            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
-
             currentRetries = 0
             recordingRtmp = false
             publishUrl = null
             rtmpCamera!!.stopStream()
+            startPreview()
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoStreamingFailed", e.message, null)
@@ -523,7 +554,6 @@ class Camera(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
     fun pauseVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
             result.success(null)
@@ -531,9 +561,6 @@ class Camera(
         }
         try {
             currentRetries = 0
-            sharedOutputConfiguration!!.removeSurface(rtmpCamera!!.inputSurface)
-            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 rtmpCamera!!.stopStream()
             } else {
@@ -570,15 +597,19 @@ class Camera(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
     fun resumeVideoStreaming(result: MethodChannel.Result) {
         if (!recordingRtmp) {
             result.success(null)
             return
         }
         try {
-            sharedOutputConfiguration!!.addSurface(rtmpCamera!!.inputSurface)
-            cameraCaptureSession!!.updateOutputConfiguration(sharedOutputConfiguration)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                rtmpCamera!!.startStream(publishUrl!!)
+            } else {
+                result.error(
+                        "videoStreamingFailed", "resumeVideoStreaming requires Android API +24.", null)
+                return
+            }
         } catch (e: IllegalStateException) {
             result.error("videoStreamingFailed", e.message, null)
             return

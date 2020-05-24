@@ -687,6 +687,54 @@ class CameraController extends ValueNotifier<CameraValue> {
   /// This uses rtmp to do the sending the remote side.
   ///
   /// Throws a [CameraException] if the capture fails.
+  Future<void> startVideoRecordingAndStreaming(String filePath, String url,
+      {int bitrate = 1200 * 1024}) async {
+    if (!value.isInitialized || _isDisposed) {
+      throw CameraException(
+        'Uninitialized CameraController',
+        'startVideoStreaming was called on uninitialized CameraController',
+      );
+    }
+
+    if (value.isRecordingVideo) {
+      throw CameraException(
+        'A video recording is already started.',
+        'startVideoStreaming was called when a recording is already started.',
+      );
+    }
+    if (value.isStreamingVideoRtmp) {
+      throw CameraException(
+        'A video streaming is already started.',
+        'startVideoStreaming was called when a recording is already started.',
+      );
+    }
+    if (value.isStreamingImages) {
+      throw CameraException(
+        'A camera has started streaming images.',
+        'startVideoStreaming was called while a camera was streaming images.',
+      );
+    }
+
+    try {
+      await _channel.invokeMethod<void>(
+          'startVideoRecordingAndStreaming', <String, dynamic>{
+        'textureId': _textureId,
+        'url': url,
+        'filePath': filePath,
+        'bitrate': bitrate
+      });
+      value =
+          value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
+  }
+
+  /// Start a video streaming to the url in [url`].
+  ///
+  /// This uses rtmp to do the sending the remote side.
+  ///
+  /// Throws a [CameraException] if the capture fails.
   Future<void> startVideoStreaming(String url,
       {int bitrate = 1200 * 1024}) async {
     if (!value.isInitialized || _isDisposed) {
@@ -695,9 +743,16 @@ class CameraController extends ValueNotifier<CameraValue> {
         'startVideoStreaming was called on uninitialized CameraController',
       );
     }
-    if (value.isStreamingVideoRtmp) {
+
+    if (value.isRecordingVideo) {
       throw CameraException(
         'A video recording is already started.',
+        'startVideoStreaming was called when a recording is already started.',
+      );
+    }
+    if (value.isStreamingVideoRtmp) {
+      throw CameraException(
+        'A video streaming is already started.',
         'startVideoStreaming was called when a recording is already started.',
       );
     }
