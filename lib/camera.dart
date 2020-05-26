@@ -785,13 +785,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         'stopVideoStreaming was called on uninitialized CameraController',
       );
     }
-    if (value.isRecordingVideo) {
-      throw CameraException(
-        'No video is recording',
-        'stopVideoStreaming was called when no video is recording.',
-      );
-    }
-    if (value.isStreamingVideoRtmp) {
+    if (!value.isStreamingVideoRtmp) {
       throw CameraException(
         'No video is recording',
         'stopVideoStreaming was called when no video is recording.',

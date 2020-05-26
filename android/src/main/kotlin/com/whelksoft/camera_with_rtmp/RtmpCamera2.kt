@@ -111,7 +111,7 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
     fun prepareVideo(width: Int, height: Int, fps: Int, bitrate: Int, hardwareRotation: Boolean,
                      iFrameInterval: Int, rotation: Int, avcProfile: Int = -1, avcProfileLevel: Int =
                              -1): Boolean {
-        val result = videoEncoder.prepareVideoEncoder(width, height, fps, bitrate, rotation, hardwareRotation,
+        val result = videoEncoder.prepareVideoEncoder(width/2, height/2, fps, bitrate, rotation, hardwareRotation,
                 iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
         return result
     }
