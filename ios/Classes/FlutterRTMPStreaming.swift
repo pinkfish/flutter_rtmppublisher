@@ -31,7 +31,10 @@ public class FlutterRTMPStreaming : NSObject {
            .height: height,
            .profileLevel: kVTProfileLevel_H264_Baseline_AutoLevel,
            .maxKeyFrameIntervalDuration: 2,
-           .bitrate: bitrate ?? 160 * 1000
+           .bitrate: 1200 * 1024
+    ]
+    rtmpStream.captureSettings = [
+      .fps: 24
     ]
     rtmpConnection.connect(self.url ?? "frog")
   }
@@ -66,14 +69,17 @@ public class FlutterRTMPStreaming : NSObject {
   @objc
   public func addVideoData(buffer: CMSampleBuffer) {
     if let description = CMSampleBufferGetFormatDescription(buffer) {
-    let dimensions = CMVideoFormatDescriptionGetDimensions(description)
-    rtmpStream.videoSettings = [
-        .width: dimensions.width,
-        .height: dimensions.height ,
-        .profileLevel: kVTProfileLevel_H264_Baseline_AutoLevel,
-        .maxKeyFrameIntervalDuration: 2,
-        .bitrate: 160 * 1000
-    ]
+      let dimensions = CMVideoFormatDescriptionGetDimensions(description)
+      rtmpStream.videoSettings = [
+          .width: dimensions.width,
+          .height: dimensions.height,
+          .profileLevel: kVTProfileLevel_H264_Baseline_AutoLevel,
+          .maxKeyFrameIntervalDuration: 2,
+          .bitrate: 1200 * 1024
+      ]
+      rtmpStream.captureSettings = [
+        .fps: 24
+      ]
     }
     rtmpStream.appendSampleBuffer( buffer, withType: .video)
   }
