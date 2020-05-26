@@ -216,7 +216,7 @@ static ResolutionPreset getResolutionPresetForString(NSString *preset) {
 - (void)start;
 - (void)stop;
 - (void)startVideoRecordingAtPath:(NSString *)path result:(FlutterResult)result;
-- (void)startVideoStreamingAtUrl:(FlutterResult)result ;
+- (void)startVideoStreamingAtUrl:(NSString *)url bitrate:(NSNumber *)bitrate result:(FlutterResult)result;
 - (void)startVideoRecordingAndStreamingAtUrl:(NSString *)url bitrate:(NSNumber *)bitrate filePath:(NSString *) result:(FlutterResult)result;
 - (void)startImageStreamWithMessenger:(NSObject<FlutterBinaryMessenger> *)messenger;
 - (void)stopImageStream;
@@ -728,13 +728,13 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
 }
 
 
-- (void)startVideoRecordingAndStreamingAtUrl:(NSString *)url bitrate:(NSNumber *)bitrate filePath:(NSString *) result:(FlutterResult)result {
+- (void)startVideoRecordingAndStreamingAtUrl:(NSString *)url bitrate:(NSNumber *)bitrate filePath:(NSString *)filePath result:(FlutterResult)result {
   if (!_isStreaming && !_isRecording) {
     if (![self setupWriterForUrl:url ]) {
       _eventSink(@{@"event" : @"error", @"errorDescription" : @"Setup Writer Failed"});
       return;
     }
-    if (![self setupWriterForPath:path]) {
+    if (![self setupWriterForPath:filePath ]) {
       _eventSink(@{@"event" : @"error", @"errorDescription" : @"Setup Writer Failed"});
       return;
     }
