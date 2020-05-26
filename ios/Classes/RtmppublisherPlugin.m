@@ -216,7 +216,8 @@ static ResolutionPreset getResolutionPresetForString(NSString *preset) {
 - (void)start;
 - (void)stop;
 - (void)startVideoRecordingAtPath:(NSString *)path result:(FlutterResult)result;
-- (void)stopVideoRecordingWithResult:(FlutterResult)result;
+- (void)startVideoStreamingAtUrl:(FlutterResult)result;
+- (void)startVideoRecordingAndStreamingAtUrl:(FlutterResult)result;
 - (void)startImageStreamWithMessenger:(NSObject<FlutterBinaryMessenger> *)messenger;
 - (void)stopImageStream;
 - (void)captureToFile:(NSString *)filename result:(FlutterResult)result;
@@ -691,30 +692,6 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
   }
 }
 
-- (void)stopVideoRecordingWithResult:(FlutterResult)result {
-  if (_isRecording) {
-    _isRecording = NO;
-    if (_videoWriter.status != AVAssetWriterStatusUnknown) {
-      [_videoWriter finishWritingWithCompletionHandler:^{
-        if (self->_videoWriter.status == AVAssetWriterStatusCompleted) {
-          result(nil);
-        } else {
-          self->_eventSink(@{
-            @"event" : @"error",
-            @"errorDescription" : @"AVAssetWriter could not finish writing!"
-          });
-        }
-      }];
-    }
-  } else {
-    NSError *error =
-        [NSError errorWithDomain:NSCocoaErrorDomain
-                            code:NSURLErrorResourceUnavailable
-                        userInfo:@{NSLocalizedDescriptionKey : @"Video is not recording!"}];
-    result(getFlutterError(error));
-  }
-}
-
 - (void)pauseVideoRecording {
   _isRecordingPaused = YES;
   _videoIsDisconnected = YES;
@@ -725,7 +702,10 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
   _isRecordingPaused = NO;
 }
 
-- (void)startVideoStreamingAtUrl:(NSString *)url bitrate: (NSNumber *)bitrate result:(FlutterResult)result {
+- (void)startVideoStreamingAtUrl:(NSString *)url bitrate:(NSNumber *)bitrate result:(FlutterResult)result {
+  if (_isStreaming) {
+    _eventSink(@{@"event" : @"error", @"errorDescription" : @"Video is already streaming!"});
+  }
   if (!_isStreaming) {
     if (![self setupWriterForUrl:url ]) {
       _eventSink(@{@"event" : @"error", @"errorDescription" : @"Setup Writer Failed"});
@@ -744,22 +724,67 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
     _videoIsDisconnected = NO;
     _audioIsDisconnected = NO;
     result(nil);
+  }
+}
+
+
+- (void)startVideoRecordingAndStreamingAtUrl:(NSString *)url bitrate:(NSNumber *)bitrate filePath:(NSString *) result:(FlutterResult)result {
+  if (!_isStreaming && !_isRecording) {
+    if (![self setupWriterForUrl:url ]) {
+      _eventSink(@{@"event" : @"error", @"errorDescription" : @"Setup Writer Failed"});
+      return;
+    }
+    if (![self setupWriterForPath:path]) {
+      _eventSink(@{@"event" : @"error", @"errorDescription" : @"Setup Writer Failed"});
+      return;
+    }
+
+    _rtmpStream = [[FlutterRTMPStreaming alloc] init];
+    if (bitrate == nil || bitrate == 0) {
+        bitrate = [NSNumber numberWithInt:160 * 1000];
+    }
+    [_rtmpStream openWithUrl:url width: _streamingSize.width height: _streamingSize.height bitrate: bitrate];
+    _isStreaming = YES;
+    _isStreamingPaused = NO;
+    _videoTimeOffset = CMTimeMake(0, 1);
+    _audioTimeOffset = CMTimeMake(0, 1);
+    _isRecording = YES;
+    _isRecordingPaused = NO;
+    _videoIsDisconnected = NO;
+    _audioIsDisconnected = NO;
+    result(nil);
   } else {
     _eventSink(@{@"event" : @"error", @"errorDescription" : @"Video is already recording!"});
   }
 }
 
-- (void)stopVideoStreamingWithResult:(FlutterResult)result {
-  if (_isStreaming) {
-    _isStreaming = NO;
-      [_rtmpStream close];
-      result(nil);
-  } else {
+- (void)stopVideoRecordingOrStreamingWithResult:(FlutterResult)result {
+  if (!_isStreaming && !_isRecording) {
     NSError *error =
         [NSError errorWithDomain:NSCocoaErrorDomain
                             code:NSURLErrorResourceUnavailable
-                        userInfo:@{NSLocalizedDescriptionKey : @"Video is not streaming!"}];
+                        userInfo:@{NSLocalizedDescriptionKey : @"Video is not recording!"}];
     result(getFlutterError(error));
+  } else {
+      if (_isRecording) {
+        _isRecording = NO;
+        if (_videoWriter.status != AVAssetWriterStatusUnknown) {
+          [_videoWriter finishWritingWithCompletionHandler:^{
+            if (self->_videoWriter.status == AVAssetWriterStatusCompleted) {
+            } else {
+              self->_eventSink(@{
+                @"event" : @"error",
+                @"errorDescription" : @"AVAssetWriter could not finish writing!"
+              });
+            }
+          }];
+        }
+      }
+
+      if (_isStreaming) {
+        _isStreaming = NO;
+          [_rtmpStream close];
+      }
   }
 }
 
@@ -1047,12 +1072,12 @@ FourCharCode const videoFormat = kCVPixelFormatType_32BGRA;
       result(nil);
     } else if ([@"startVideoRecording" isEqualToString:call.method]) {
       [_camera startVideoRecordingAtPath:call.arguments[@"filePath"] result:result];
-    } else if ([@"stopVideoRecording" isEqualToString:call.method]) {
-      [_camera stopVideoRecordingWithResult:result];
     } else if ([@"startVideoStreaming" isEqualToString:call.method]) {
       [_camera startVideoStreamingAtUrl:call.arguments[@"url"] bitrate:call.arguments[@"bitrate"] result:result];
-    } else if ([@"stopVideoStreaming" isEqualToString:call.method]) {
-      [_camera stopVideoStreamingWithResult:result];
+    } else if ([@"startVideoRecordingAndStreaming" isEqualToString:call.method]) {
+      [_camera startVideoRecordingAndStreamingAtUrl:call.arguments[@"url"] bitrate:call.arguments[@"bitrate"] filePath:call.arguments[@"filePath"] result:result];
+    } else if ([@"stopRecordingOrStreaming" isEqualToString:call.method]) {
+      [_camera stopVideoRecordingOrStreamingWithResult:result];
     } else {
       result(FlutterMethodNotImplemented);
     }
