@@ -216,8 +216,8 @@ static ResolutionPreset getResolutionPresetForString(NSString *preset) {
 - (void)start;
 - (void)stop;
 - (void)startVideoRecordingAtPath:(NSString *)path result:(FlutterResult)result;
-- (void)startVideoStreamingAtUrl:(FlutterResult)result;
-- (void)startVideoRecordingAndStreamingAtUrl:(FlutterResult)result;
+- (void)startVideoStreamingAtUrl:(FlutterResult)result ;
+- (void)startVideoRecordingAndStreamingAtUrl:(NSString *)url bitrate:(NSNumber *)bitrate filePath:(NSString *) result:(FlutterResult)result;
 - (void)startImageStreamWithMessenger:(NSObject<FlutterBinaryMessenger> *)messenger;
 - (void)stopImageStream;
 - (void)captureToFile:(NSString *)filename result:(FlutterResult)result;
