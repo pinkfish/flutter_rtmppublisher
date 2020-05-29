@@ -1,3 +1,9 @@
+## 0.2.0
+
+* Fixed up issues with the stopVideoStreaming api.
+* Added a flag to use an openGL surface on android to allow for
+  correct rotation when encoding, also sets up to do filters.
+
 ## 0.1.9
 
 * Added in a method to record and stream at the same time.

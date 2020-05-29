@@ -92,13 +92,14 @@ class Camera(
     }
 
     @Throws(IOException::class)
-    private fun prepareRtmpPublished(url: String, fps: Int, bitrate: Int?) {
+    private fun prepareRtmpPublished(url: String, fps: Int, bitrate: Int?, useOpenGL: Boolean) {
         if (rtmpCamera != null) {
             rtmpCamera!!.stopStream()
             rtmpCamera = null
         }
         rtmpCamera = RtmpCamera2(
                 context = activity!!.applicationContext!!,
+                useOpenGL = useOpenGL,
                 connectChecker = this)
 
         rtmpCamera!!.prepareAudio()
@@ -482,7 +483,7 @@ class Camera(
         orientationEventListener.disable()
     }
 
-    fun startVideoStreaming(url: String?, bitrate: Int?, result: MethodChannel.Result) {
+    fun startVideoStreaming(url: String?, bitrate: Int?, useOpenGL: Boolean, result: MethodChannel.Result) {
         if (url == null) {
             result.error("fileExists", "Must specify a url.", null)
             return
@@ -490,7 +491,8 @@ class Camera(
         try {
             // Setup the rtmp session
             currentRetries = 0
-            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate)
+            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate, useOpenGL)
+
 
             // Start capturing from the camera.
             createCaptureSession(
@@ -507,7 +509,7 @@ class Camera(
         }
     }
 
-    fun startVideoRecordingAndStreaming(filePath: String, url: String?, bitrate: Int?, result: MethodChannel.Result) {
+    fun startVideoRecordingAndStreaming(filePath: String, url: String?, bitrate: Int?, useOpenGL: Boolean, result: MethodChannel.Result) {
         if (File(filePath).exists()) {
             result.error("fileExists", "File at path '$filePath' already exists.", null)
             return
@@ -519,7 +521,7 @@ class Camera(
         try {
             // Setup the rtmp session
             currentRetries = 0
-            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate)
+            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate, useOpenGL)
 
             // Setup the recorder.
             prepareMediaRecorder(filePath)
@@ -551,12 +553,8 @@ class Camera(
         }
         try {
             currentRetries = 0
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                rtmpCamera!!.stopStream()
-            } else {
-                result.error("videoStreamingFailed", "pauseVideoStreaming requires Android API +24.", null)
-                return
-            }
+                rtmpCamera!!.pauseStream()
+                rtmpCamera = null
         } catch (e: IllegalStateException) {
             result.error("videoStreamingFailed", e.message, null)
             return
@@ -593,13 +591,7 @@ class Camera(
             return
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                rtmpCamera!!.startStream(publishUrl!!)
-            } else {
-                result.error(
-                        "videoStreamingFailed", "resumeVideoStreaming requires Android API +24.", null)
-                return
-            }
+            rtmpCamera!!.resumeStream()
         } catch (e: IllegalStateException) {
             result.error("videoStreamingFailed", e.message, null)
             return

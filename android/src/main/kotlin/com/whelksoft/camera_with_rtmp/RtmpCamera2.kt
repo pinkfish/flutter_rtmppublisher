@@ -39,12 +39,14 @@ import java.util.*
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback {
+class RtmpCamera2(val context: Context, val useOpenGL: Boolean, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback {
     protected val videoEncoder: VideoEncoder
     private var microphoneManager: MicrophoneManager
     private var audioEncoder: AudioEncoder
     private var srsFlvMuxer: SrsFlvMuxer
     private var curFps: Int
+    private var paused: Boolean = false
+    private val glInterface: OffScreenGlThread = OffScreenGlThread(context)
 
     /**
      * Get stream state.
@@ -63,6 +65,9 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
         srsFlvMuxer = SrsFlvMuxer(connectChecker)
         fpsListener.setCallback(this)
         curFps = 0
+        if (useOpenGL) {
+            glInterface.init()
+        }
     }
 
     /**
@@ -89,7 +94,13 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
     }
 
 
-    val inputSurface: Surface get() = videoEncoder.inputSurface
+    val inputSurface: Surface get() {
+  if (useOpenGL) {
+      return glInterface.getSurface()
+  } else {
+      return videoEncoder.inputSurface
+  }
+    }
 
 
     /**
@@ -111,9 +122,17 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
     fun prepareVideo(width: Int, height: Int, fps: Int, bitrate: Int, hardwareRotation: Boolean,
                      iFrameInterval: Int, rotation: Int, avcProfile: Int = -1, avcProfileLevel: Int =
                              -1): Boolean {
-        val result = videoEncoder.prepareVideoEncoder(width/2, height/2, fps, bitrate, rotation, hardwareRotation,
-                iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
-        return result
+        if (useOpenGL) {
+            val result = videoEncoder.prepareVideoEncoder(width, height, fps, bitrate, rotation, hardwareRotation,
+                    iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
+            prepareGlInterface()
+            glInterface.addMediaCodecSurface(videoEncoder.inputSurface)
+            return result
+        } else {
+            val result = videoEncoder.prepareVideoEncoder(width, height, fps, bitrate, rotation, hardwareRotation,
+                    iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
+            return result
+        }
     }
 
     /**
@@ -122,6 +141,18 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
     fun prepareVideo(width: Int, height: Int, fps: Int, bitrate: Int, hardwareRotation: Boolean,
                      rotation: Int): Boolean {
         return prepareVideo(width, height, fps, bitrate, hardwareRotation, 2, rotation)
+    }
+
+    private fun prepareGlInterface() {
+        val isPortrait: Boolean = CameraHelper.isPortrait(context)
+        if (isPortrait) {
+            this.glInterface.setEncoderSize(videoEncoder.getHeight(), videoEncoder.getWidth())
+        } else {
+            this.glInterface.setEncoderSize(videoEncoder.getWidth(), videoEncoder.getHeight())
+        }
+        this.glInterface.setRotation(
+                if (videoEncoder.getRotation() === 0) 270 else videoEncoder.getRotation() - 90)
+        this.glInterface.start()
     }
 
     /**
@@ -199,6 +230,15 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
         microphoneManager!!.stop()
         videoEncoder!!.stop()
         audioEncoder!!.stop()
+        glInterface.stop()
+    }
+
+    fun pauseStream() {
+        paused = true
+    }
+
+    fun resumeStream() {
+        paused = false
     }
 
     fun reTry(delay: Long, reason: String): Boolean {
@@ -365,20 +405,20 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
 
 
     override fun getAacData(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        if (isStreaming) getAacDataRtp(aacBuffer, info)
+        if (isStreaming && !paused) getAacDataRtp(aacBuffer, info)
     }
 
     override fun onSpsPps(sps: ByteBuffer, pps: ByteBuffer) {
-        if (isStreaming) onSpsPpsVpsRtp(sps, pps, null)
+        if (isStreaming&& !paused) onSpsPpsVpsRtp(sps, pps, null)
     }
 
     override fun onSpsPpsVps(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer) {
-        if (isStreaming) onSpsPpsVpsRtp(sps, pps, vps)
+        if (isStreaming && !paused) onSpsPpsVpsRtp(sps, pps, vps)
     }
 
     override fun getVideoData(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         fpsListener.calculateFps()
-        if (isStreaming) getH264DataRtp(h264Buffer, info)
+        if (isStreaming && !paused) getH264DataRtp(h264Buffer, info)
     }
 
     override fun inputPCMData(frame: Frame) {
@@ -392,15 +432,15 @@ class RtmpCamera2(val context: Context, val connectChecker: ConnectCheckerRtmp) 
     }
 
     fun getAacDataRtp(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        srsFlvMuxer.sendAudio(aacBuffer, info)
+            srsFlvMuxer.sendAudio(aacBuffer, info)
     }
 
     fun onSpsPpsVpsRtp(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer?) {
-        srsFlvMuxer.setSpsPPs(sps, pps)
+            srsFlvMuxer.setSpsPPs(sps, pps)
     }
 
     fun getH264DataRtp(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        srsFlvMuxer.sendVideo(h264Buffer, info)
+            srsFlvMuxer.sendVideo(h264Buffer, info)
     }
 
     override fun onFps(fps: Int) {

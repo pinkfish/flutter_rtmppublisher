@@ -689,7 +689,7 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// Throws a [CameraException] if the capture fails.
   Future<void> startVideoRecordingAndStreaming(String filePath, String url,
-      {int bitrate = 1200 * 1024}) async {
+      {int bitrate = 1200 * 1024, bool androidUseOpenGL}) async {
     if (!value.isInitialized || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
@@ -722,7 +722,8 @@ class CameraController extends ValueNotifier<CameraValue> {
         'textureId': _textureId,
         'url': url,
         'filePath': filePath,
-        'bitrate': bitrate
+        'bitrate': bitrate,
+        'enableAndroidOpenGL': androidUseOpenGL
       });
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
@@ -737,7 +738,7 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// Throws a [CameraException] if the capture fails.
   Future<void> startVideoStreaming(String url,
-      {int bitrate = 1200 * 1024}) async {
+      {int bitrate = 1200 * 1024, bool androidUseOpenGL}) async {
     if (!value.isInitialized || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
@@ -764,11 +765,12 @@ class CameraController extends ValueNotifier<CameraValue> {
     }
 
     try {
-      await _channel.invokeMethod<void>(
-          'startVideoStreaming', <String, dynamic>{
+      await _channel
+          .invokeMethod<void>('startVideoStreaming', <String, dynamic>{
         'textureId': _textureId,
         'url': url,
-        'bitrate': bitrate
+        'bitrate': bitrate,
+        'enableAndroidOpenGL': androidUseOpenGL
       });
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);

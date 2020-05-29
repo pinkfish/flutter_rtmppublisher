@@ -68,9 +68,15 @@ internal class MethodCallHandlerImpl(
                 if (call.hasArgument("bitrate")) {
                     bitrate = call.argument("bitrate")
                 }
+                var enableOpenGL = false
+                if (call.hasArgument("enableAndroidOpenGL")) {
+                    enableOpenGL = call.argument<Boolean>("enableAndroidOpenGL")!!
+                }
+
                 camera!!.startVideoStreaming(
                         call.argument("url"),
                         bitrate,
+                        enableOpenGL,
                         result)
             }
             "startVideoRecordingAndStreaming" -> {
@@ -79,10 +85,15 @@ internal class MethodCallHandlerImpl(
                 if (call.hasArgument("bitrate")) {
                     bitrate = call.argument("bitrate")
                 }
+                var enableOpenGL = false
+                if (call.hasArgument("enableAndroidOpenGL")) {
+                    enableOpenGL = call.argument<Boolean>("enableAndroidOpenGL")!!
+                }
                 camera!!.startVideoRecordingAndStreaming(
                         call.argument("filePath")!!,
                         call.argument("url"),
                         bitrate,
+                        enableOpenGL,
                         result)
             }
             "pauseStreaming" -> {
