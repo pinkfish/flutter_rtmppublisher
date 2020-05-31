@@ -20,6 +20,7 @@ jobs:
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
       - run: sudo mkdir ${ANDROID_HOME}/ndk
+        continue-on-error: true
       - name: Cache ndk
         uses: actions/cache@v2
         with:
