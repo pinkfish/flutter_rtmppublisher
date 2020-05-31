@@ -20,9 +20,10 @@ jobs:
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
       - run: sudo mkdir ${ANDROID_HOME}/ndk
-        continue-on-error: true
+        if: startsWith(matrix.os,'ubuntu')
       - name: Cache ndk
         uses: actions/cache@v2
+        if: startsWith(matrix.os,'ubuntu')
         with:
           path: |
             ${ANDROID_HOME}/ndk
@@ -38,7 +39,7 @@ jobs:
           java-version: '12.x'
       - name: Install NDK
         run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
-        continue-on-error: true
+        if: startsWith(matrix.os,'ubuntu')
       - uses: subosito/flutter-action@v1
         with:
           flutter-version: '1.17.1'
@@ -48,4 +49,8 @@ jobs:
       - run: flutter pub get
       - run: flutter test
       - run: flutter build apk
+        if: startsWith(matrix.os,'ubuntu')
+        working-directory: example
+      - run: flutter build ios
+        if: startsWith(matrix.os,'macOS')
         working-directory: example
