@@ -28,8 +28,6 @@ jobs:
             ${ANDROID_HOME}/ndk
           key: ${{ runner.os }}-ndk
       - uses: actions/checkout@v1
-      - name: Install NDK
-        run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
       - name: Cache Flutter dependencies
         uses: actions/cache@v1
         with:
@@ -38,6 +36,8 @@ jobs:
       - uses: actions/setup-java@v1
         with:
           java-version: '12.x'
+      - name: Install NDK
+        run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
       - uses: subosito/flutter-action@v1
         with:
           flutter-version: '1.17.1'
