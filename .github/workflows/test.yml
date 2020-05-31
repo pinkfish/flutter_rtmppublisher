@@ -28,7 +28,7 @@ jobs:
           key: ${{ runner.os }}-ndk
       - uses: actions/checkout@v1
       - name: Install NDK
-        run: echo "y" | sudo /usr/local/lib/android/sdk/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
+        run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
       - name: Cache Flutter dependencies
         uses: actions/cache@v1
         with:
