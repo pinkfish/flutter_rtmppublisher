@@ -17,7 +17,8 @@ jobs:
           - os: ubuntu-latest
             flutter_path: /opt/hostedtoolcache/flutter
           - os: macos-latest
-            flutter_path: /Users/runner/hostedtoolcache/flutter    steps:
+            flutter_path: /Users/runner/hostedtoolcache/flutter    
+    steps:
       - name: Cache ndk
         uses: actions/cache@v2
         with:
