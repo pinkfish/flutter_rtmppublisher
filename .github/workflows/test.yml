@@ -19,12 +19,12 @@ jobs:
           - os: macos-latest
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
-      - run: sudo mkdir /usr/local/lib/android/sdk/ndk
+      - run: sudo mkdir ${ANDROID_HOME}/ndk
       - name: Cache ndk
         uses: actions/cache@v2
         with:
           path: |
-            /usr/local/lib/android/sdk/ndk
+            ${ANDROID_HOME}/ndk
           key: ${{ runner.os }}-ndk
       - uses: actions/checkout@v1
       - name: Install NDK
