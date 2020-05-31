@@ -723,7 +723,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         'url': url,
         'filePath': filePath,
         'bitrate': bitrate,
-        'enableAndroidOpenGL': androidUseOpenGL
+        'enableAndroidOpenGL': androidUseOpenGL ?? false
       });
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
@@ -770,7 +770,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         'textureId': _textureId,
         'url': url,
         'bitrate': bitrate,
-        'enableAndroidOpenGL': androidUseOpenGL
+        'enableAndroidOpenGL': androidUseOpenGL ?? false
       });
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
