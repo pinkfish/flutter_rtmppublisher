@@ -14,6 +14,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
+      - name: Cache ndk
+        uses: actions/cache@v2
+        with:
+          path: |
+            /usr/local/lib/android/sdk/ndk
+          key: ${{ runner.os }}-ndk
       - uses: actions/checkout@v1
       - uses: actions/setup-java@v1
         with:
