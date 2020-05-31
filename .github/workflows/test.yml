@@ -21,7 +21,7 @@ jobs:
       - uses: subosito/flutter-action@v1
         with:
           flutter-version: '1.17.1'
-          channel: 'beta'
+          channel: 'stable'
       - run: dart --version
       - run: flutter --version
       - run: flutter pub get
