@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  flutter_version: "1.17.1"
+  java_version: "12.x"
+
 jobs:
   test:
     name: Test on ${{ matrix.os }}
@@ -36,13 +40,13 @@ jobs:
           key: ${{ runner.OS }}-flutter-install-cache-${{ env.flutter_version }}
       - uses: actions/setup-java@v1
         with:
-          java-version: '12.x'
+          java-version: ${{ env.java_version }}
       - name: Install NDK
         run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
         if: startsWith(matrix.os,'ubuntu')
       - uses: subosito/flutter-action@v1
         with:
-          flutter-version: '1.17.1'
+          flutter-version: ${{ env.flutter_version }}
           channel: 'stable'
       - run: dart --version
       - run: flutter --version
