@@ -19,6 +19,7 @@ jobs:
           - os: macos-latest
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
+      - run: sudo mkdir /usr/local/lib/android/sdk/ndk
       - name: Cache ndk
         uses: actions/cache@v2
         with:
