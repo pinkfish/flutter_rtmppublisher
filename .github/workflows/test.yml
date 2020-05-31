@@ -25,6 +25,8 @@ jobs:
       - run: dart --version
       - run: flutter --version
       - run: flutter pub get
+      - name: Install NDK
+        run: echo "y" | sudo /usr/local/lib/android/sdk/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
       - run: flutter test
       - run: flutter build apk
         working-directory: example
