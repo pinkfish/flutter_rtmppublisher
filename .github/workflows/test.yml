@@ -30,7 +30,6 @@ jobs:
           key: ${{ runner.os }}-ndk
       - uses: actions/checkout@v1
       - run: ./scripts/setup-env.sh
-      - run: env
       - name: Cache Flutter dependencies
         uses: actions/cache@v1
         with:
