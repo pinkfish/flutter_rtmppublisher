@@ -16,6 +16,11 @@ jobs:
       - uses: mikefarah/yq@3.3.0
         with: 
           cmd: yq w -i pubspec.yaml 'version' "${GITHUB_REF#refs/tags/}"
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v1
+        with:
+          path: /opt/hostedtoolcache/flutter
+          key: ${{ runner.OS }}-flutter-install-cache-${{ env.flutter_version }}  
       - uses: subosito/flutter-action@v1
         with:
           flutter-version: '1.17.1'
