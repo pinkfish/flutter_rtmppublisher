@@ -1,3 +1,9 @@
+## 0.2.2
+
+* Fix the streaming to work with android.
+* Photos no longer work while streaming (hate the android 
+  camera api)
+
 ## 0.2.1
 
 * Add in github workflows to test/publish the package
