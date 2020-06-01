@@ -55,7 +55,7 @@ class Camera(
     private val recordingProfile: CamcorderProfile
     private val streamingProfile: CamcorderProfile
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
-    private var rtmpCamera: RtmpCamera2? = null
+    private var rtmpCamera: RtmpCameraConnector? = null
     private var bitrateAdapter: BitrateAdapter? = null
     private val maxRetries = 3
     private var currentRetries = 0
@@ -97,7 +97,7 @@ class Camera(
             rtmpCamera!!.stopStream()
             rtmpCamera = null
         }
-        rtmpCamera = RtmpCamera2(
+        rtmpCamera = RtmpCameraConnector(
                 context = activity!!.applicationContext!!,
                 useOpenGL = useOpenGL,
                 connectChecker = this)
@@ -319,7 +319,9 @@ class Camera(
     }
 
     fun stopVideoRecordingOrStreaming(result: MethodChannel.Result) {
-        if (!recordingVideo && !recordingRtmp) {
+        Log.i("Camera", "stopVideoRecordingOrStreaming " + recordingRtmp + " : " + recordingVideo)
+
+        if (!recordingVideo && !recordingRtmp && rtmpCamera == null) {
             result.success(null)
             return
         }
@@ -331,11 +333,14 @@ class Camera(
                 mediaRecorder = null
             }
 
-            if (recordingRtmp) {
+            if (recordingRtmp || rtmpCamera != null) {
                 currentRetries = 0
                 recordingRtmp = false
                 publishUrl = null
-                rtmpCamera!!.stopStream()
+                if (rtmpCamera != null) {
+                    rtmpCamera!!.stopStream()
+                    rtmpCamera = null
+                }
             }
 
             startPreview()
@@ -493,6 +498,7 @@ class Camera(
             currentRetries = 0
             prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate, useOpenGL)
 
+            recordingRtmp = true
 
             // Start capturing from the camera.
             createCaptureSession(
@@ -500,7 +506,6 @@ class Camera(
                     Runnable { rtmpCamera!!.startStream(url) },
                     rtmpCamera!!.inputSurface
             )
-            recordingRtmp = true
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoStreamingFailed", e.message, null)
@@ -553,8 +558,7 @@ class Camera(
         }
         try {
             currentRetries = 0
-                rtmpCamera!!.pauseStream()
-                rtmpCamera = null
+            rtmpCamera!!.pauseStream()
         } catch (e: IllegalStateException) {
             result.error("videoStreamingFailed", e.message, null)
             return
@@ -679,7 +683,10 @@ class Camera(
     }
 
     override fun onDisconnectRtmp() {
-        rtmpCamera!!.stopStream()
+        if (rtmpCamera != null) {
+            rtmpCamera!!.stopStream()
+            rtmpCamera = null
+        }
         activity!!.runOnUiThread {
             dartMessenger.send(DartMessenger.EventType.RTMP_STOPPED, "Disconnected")
         }

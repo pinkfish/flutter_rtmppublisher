@@ -384,10 +384,17 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   }
 
   void onStopButtonPressed() {
-    stopVideoRecording().then((_) {
-      if (mounted) setState(() {});
-      showInSnackBar('Video recorded to: $videoPath');
-    });
+    if (this.controller.value.isStreamingVideoRtmp) {
+      stopVideoStreaming().then((_) {
+        if (mounted) setState(() {});
+        showInSnackBar('Video streamed to: $url');
+      });
+    } else {
+      stopVideoRecording().then((_) {
+        if (mounted) setState(() {});
+        showInSnackBar('Video recorded to: $videoPath');
+      });
+    }
     Wakelock.disable();
   }
 

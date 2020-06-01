@@ -38,7 +38,7 @@ import java.util.*
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class RtmpCamera2(val context: Context, val useOpenGL: Boolean, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback {
+class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback {
     private var videoEncoder: VideoEncoder? = null
     private var microphoneManager: MicrophoneManager
     private var audioEncoder: AudioEncoder
@@ -185,7 +185,7 @@ class RtmpCamera2(val context: Context, val useOpenGL: Boolean, val connectCheck
      * @param forceAudio force type codec used. FIRST_COMPATIBLE_FOUND, SOFTWARE, HARDWARE
      */
     fun setForce(forceVideo: Force, forceAudio: Force) {
-        videoEncoder!!.setForce(forceVideo)
+        videoEncoder!!.force = forceVideo
         audioEncoder!!.setForce(forceAudio)
     }
 
@@ -221,10 +221,8 @@ class RtmpCamera2(val context: Context, val useOpenGL: Boolean, val connectCheck
      * Stop stream started with @startStream.
      */
     fun stopStream() {
-        if (isStreaming) {
-            isStreaming = false
-            stopStreamRtp()
-        }
+        isStreaming = false
+        stopStreamRtp()
         microphoneManager!!.stop()
         videoEncoder!!.stop()
         audioEncoder!!.stop()
@@ -331,7 +329,6 @@ class RtmpCamera2(val context: Context, val useOpenGL: Boolean, val connectCheck
     public fun reConnect(delay: Long) {
         srsFlvMuxer.reConnect(delay)
     }
-
 
     /**
      * Mute microphone, can be called before, while and after stream.

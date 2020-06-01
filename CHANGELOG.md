@@ -1,3 +1,10 @@
+## 0.2.1
+
+* Add in github workflows to test/publish the package
+* Copy the video encoder from the pedro library and update
+  to make it not message with sizes for the surface, but
+  include the rotation to make rotation work without opengl.
+
 ## 0.2.0
 
 * Fixed up issues with the stopVideoStreaming api.

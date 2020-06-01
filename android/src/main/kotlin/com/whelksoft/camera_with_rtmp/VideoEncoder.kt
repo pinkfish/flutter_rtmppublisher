@@ -27,7 +27,7 @@ import java.util.List
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 
-class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: Int, var fps: Int, var bitrate: Int, val rotation: Int, val hardwareRotation: Boolean, val iFrameInterval: Int, val formatVideoEncoder: FormatVideoEncoder, val avcProfile: Int = -1, val avcProfileLevel: Int = -1) : BaseEncoder(), GetCameraData {
+class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: Int, var fps: Int, var bitrate: Int, val rotation: Int, val doRotation: Boolean, val iFrameInterval: Int, val formatVideoEncoder: FormatVideoEncoder, val avcProfile: Int = -1, val avcProfileLevel: Int = -1) {
     private var spsPpsSetted = false
 
     // surface to buffer encoder
@@ -38,6 +38,15 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
     var type: String = CodecUtil.H264_MIME
     private var handlerThread: HandlerThread = HandlerThread(TAG)
     private val queue: BlockingQueue<Frame> = ArrayBlockingQueue(80)
+    protected var codec: MediaCodec? = null
+    private var callback: MediaCodec.Callback? = null
+    private var isBufferMode: Boolean = false
+    protected var presentTimeUs: Long = 0
+    var force: CodecUtil.Force = CodecUtil.Force.FIRST_COMPATIBLE_FOUND
+    private val bufferInfo: MediaCodec.BufferInfo = MediaCodec.BufferInfo()
+
+    @kotlin.jvm.Volatile
+    protected var running = false
 
     // The fps to limit at
     var limitFps = fps
@@ -47,7 +56,6 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
      */
     @kotlin.jvm.JvmOverloads
     fun prepare(): Boolean {
-        isBufferMode = true
         val encoder: MediaCodecInfo? = chooseEncoder(type)
         var videoEncoder: FormatVideoEncoder? = this.formatVideoEncoder
         return try {
@@ -68,13 +76,8 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
             //if you dont use mediacodec rotation you need swap width and height in rotation 90 or 270
             // for correct encoding resolution
             val resolution: String
-            if (!hardwareRotation && (rotation == 90 || rotation == 270)) {
-                resolution = height.toString() + "x" + width
-                videoFormat = MediaFormat.createVideoFormat(type, height, width)
-            } else {
-                resolution = width.toString() + "x" + height
-                videoFormat = MediaFormat.createVideoFormat(type, width, height)
-            }
+            resolution = height.toString() + "x" + width
+            videoFormat = MediaFormat.createVideoFormat(type, height, width)
             Log.i(TAG, "Prepare video info: " + videoEncoder!!.name.toString() + ", " + resolution)
             videoFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT,
                     videoEncoder!!.getFormatCodec())
@@ -82,21 +85,18 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
             videoFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, iFrameInterval)
-            if (hardwareRotation) {
-                videoFormat.setInteger(MediaFormat.KEY_ROTATION, rotation)
-            }
+            videoFormat.setInteger(MediaFormat.KEY_ROTATION, rotation)
             if (this.avcProfile > 0 && this.avcProfileLevel > 0) {
                 // MediaFormat.KEY_PROFILE, API > 21
                 videoFormat.setInteger(MediaFormat.KEY_PROFILE, this.avcProfile)
                 // MediaFormat.KEY_LEVEL, API > 23
                 videoFormat.setInteger(MediaFormat.KEY_LEVEL, this.avcProfileLevel)
             }
-            codec.configure(videoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            codec!!.configure(videoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             running = false
-            if (videoEncoder === FormatVideoEncoder.SURFACE
-                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            if (videoEncoder === FormatVideoEncoder.SURFACE) {
                 isBufferMode = false
-                surface = codec.createInputSurface()
+                surface = codec!!.createInputSurface()
             }
             Log.i(TAG, "prepared")
             true
@@ -109,12 +109,10 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
         }
     }
 
-    override  fun start(resetTs: Boolean) {
+    fun start() {
         spsPpsSetted = false
-        if (resetTs) {
-            presentTimeUs = System.nanoTime() / 1000
-            fpsLimiter.setFPS(limitFps)
-        }
+        presentTimeUs = System.nanoTime() / 1000
+        fpsLimiter.setFPS(limitFps)
         if (formatVideoEncoder !== FormatVideoEncoder.SURFACE) {
             YUVUtil.preAllocateBuffers(width * height * 3 / 2)
         }
@@ -122,25 +120,25 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
         val handler = Handler(handlerThread.getLooper())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             createAsyncCallback()
-            codec.setCallback(callback, handler)
-            codec.start()
+            codec!!.setCallback(callback, handler)
+            codec!!.start()
         } else {
-            codec.start()
-            handler.post(Runnable{
-                    while (running) {
-                        try {
-                            getDataFromEncoder(null)
-                        } catch (e: IllegalStateException) {
-                            Log.i(TAG, "Encoding error", e)
-                        }
+            codec!!.start()
+            handler.post(Runnable {
+                while (running) {
+                    try {
+                        getDataFromEncoder(null)
+                    } catch (e: IllegalStateException) {
+                        Log.i(TAG, "Encoding error", e)
                     }
+                }
             })
         }
         running = true
         Log.i(TAG, "started")
     }
 
-    override protected fun stopImp() {
+    protected fun stopImp() {
         if (handlerThread != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
                 handlerThread.quitSafely()
@@ -154,10 +152,24 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
         Log.i(TAG, "stopped")
     }
 
+    fun stop() {
+        running = false
+        codec = try {
+            codec!!.stop()
+            codec!!.release()
+            stopImp()
+            null
+        } catch (e: IllegalStateException) {
+            null
+        } catch (e: NullPointerException) {
+            null
+        }
+    }
+
     fun reset() {
         stop()
         prepare()
-        start(false)
+        start()
     }
 
     private fun chooseColorDynamically(mediaCodecInfo: MediaCodecInfo): FormatVideoEncoder? {
@@ -173,12 +185,12 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
 
     @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     fun setVideoBitrateOnFly(bitrate: Int) {
-        if (isRunning()) {
+        if (running) {
             this.bitrate = bitrate
             val bundle = Bundle()
             bundle.putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
             try {
-                codec.setParameters(bundle)
+                codec!!.setParameters(bundle)
             } catch (e: IllegalStateException) {
                 Log.e(TAG, "encoder need be running", e)
             }
@@ -187,11 +199,11 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
 
     @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     fun forceSyncFrame() {
-        if (isRunning()) {
+        if (running) {
             val bundle = Bundle()
             bundle.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
             try {
-                codec.setParameters(bundle)
+                codec!!.setParameters(bundle)
             } catch (e: IllegalStateException) {
                 Log.e(TAG, "encoder need be running", e)
             }
@@ -206,7 +218,7 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
         this.surface = surface
     }
 
-    override fun inputYUVData(frame: Frame?) {
+    fun inputYUVData(frame: Frame?) {
         if (running && !queue.offer(frame)) {
             Log.i(TAG, "frame discarded")
         }
@@ -226,7 +238,7 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
     /**
      * choose the video encoder by mime.
      */
-    override  protected fun chooseEncoder(mime: String): MediaCodecInfo? {
+    protected fun chooseEncoder(mime: String): MediaCodecInfo? {
         val mediaCodecInfoList: List<MediaCodecInfo>? = if (force === CodecUtil.Force.HARDWARE) {
             CodecUtil.getAllHardwareEncoders(mime) as List<MediaCodecInfo>
         } else if (force === CodecUtil.Force.SOFTWARE) {
@@ -334,30 +346,74 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
         return byteBufferList as List<ByteBuffer>
     }
 
-override    protected fun getInputFrame(): Frame
-         {
-            val frame: Frame = queue.take()
-            if (fpsLimiter.limitFPS()) return inputFrame
-            var buffer: ByteArray = frame.getBuffer()
-            val isYV12 = frame.getFormat() === ImageFormat.YV12
-            if (!hardwareRotation) {
-                var orientation: Int = if (frame.isFlip()) frame.getOrientation() + 180 else frame.getOrientation()
-                if (orientation >= 360) orientation -= 360
-                buffer = if (isYV12) YUVUtil.rotateYV12(buffer, width, height, orientation) else YUVUtil.rotateNV21(buffer, width, height, orientation)
+    @kotlin.jvm.Throws(IllegalStateException::class)
+    protected fun getDataFromEncoder(frame: Frame?) {
+        if (isBufferMode) {
+            val inBufferIndex: Int = codec!!.dequeueInputBuffer(0)
+            if (inBufferIndex >= 0) {
+                inputAvailable(codec!!, inBufferIndex, frame)
             }
-            buffer = if (isYV12) YUVUtil.YV12toYUV420byColor(buffer, width, height, formatVideoEncoder) else YUVUtil.NV21toYUV420byColor(buffer, width, height, formatVideoEncoder)
-            frame.setBuffer(buffer)
-            return frame
         }
+        while (running) {
+            val outBufferIndex: Int = codec!!.dequeueOutputBuffer(bufferInfo, 0)
+            if (outBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                val mediaFormat: MediaFormat = codec!!.getOutputFormat()
+                formatChanged(codec!!, mediaFormat)
+            } else if (outBufferIndex >= 0) {
+                outputAvailable(codec!!, outBufferIndex, bufferInfo)
+            } else {
+                break
+            }
+        }
+    }
 
-    override     fun formatChanged(mediaCodec: MediaCodec,  mediaFormat: MediaFormat) {
+    protected fun getInputFrame(): Frame {
+        val frame: Frame = queue.take()
+        if (fpsLimiter.limitFPS()) return getInputFrame()
+        var buffer: ByteArray = frame.getBuffer()
+        val isYV12 = frame.getFormat() === ImageFormat.YV12
+        if (!doRotation) {
+            var orientation: Int = if (frame.isFlip()) frame.getOrientation() + 180 else frame.getOrientation()
+            if (orientation >= 360) orientation -= 360
+            buffer = if (isYV12) {
+                YUVUtil.rotateYV12(buffer, width, height, orientation)
+            } else {
+                YUVUtil.rotateNV21(buffer, width, height, orientation)
+            }
+        }
+        buffer = if (isYV12) {
+            YUVUtil.YV12toYUV420byColor(buffer, width, height, formatVideoEncoder)
+        } else {
+            YUVUtil.NV21toYUV420byColor(buffer, width, height, formatVideoEncoder)
+        }
+        frame.setBuffer(buffer)
+        return frame
+    }
+
+    @kotlin.jvm.Throws(IllegalStateException::class)
+    private fun processInput(byteBuffer: ByteBuffer, mediaCodec: MediaCodec,
+                             inBufferIndex: Int, frame: Frame?) {
+        var myFrame: Frame? = frame
+        try {
+            if (myFrame == null) myFrame = getInputFrame()
+            byteBuffer.clear()
+            byteBuffer.put(myFrame.getBuffer(), myFrame.getOffset(), myFrame.getSize())
+            val pts: Long = System.nanoTime() / 1000 - presentTimeUs
+            mediaCodec.queueInputBuffer(inBufferIndex, 0, myFrame.getSize(), pts, 0)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+    }
+
+
+    fun formatChanged(mediaCodec: MediaCodec, mediaFormat: MediaFormat) {
         getVideoData.onVideoFormat(mediaFormat)
         sendSPSandPPS(mediaFormat)
         spsPpsSetted = true
     }
 
-    override    protected fun checkBuffer( byteBuffer: ByteBuffer,
-                               bufferInfo: MediaCodec.BufferInfo) {
+    protected fun checkBuffer(byteBuffer: ByteBuffer,
+                              bufferInfo: MediaCodec.BufferInfo) {
         if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG !== 0) {
             if (!spsPpsSetted) {
                 val buffers: Pair<ByteBuffer, ByteBuffer>? = decodeSpsPpsFromBuffer(byteBuffer.duplicate(), bufferInfo.size)
@@ -369,18 +425,25 @@ override    protected fun getInputFrame(): Frame
         }
     }
 
-    override    protected fun sendBuffer( byteBuffer: ByteBuffer,
-                              bufferInfo: MediaCodec.BufferInfo) {
+    protected fun sendBuffer(byteBuffer: ByteBuffer,
+                             bufferInfo: MediaCodec.BufferInfo) {
         bufferInfo.presentationTimeUs = System.nanoTime() / 1000 - presentTimeUs
         getVideoData.getVideoData(byteBuffer, bufferInfo)
     }
 
-    private var callback: MediaCodec.Callback? = null
+    @kotlin.jvm.Throws(IllegalStateException::class)
+    private fun processOutput(byteBuffer: ByteBuffer, mediaCodec: MediaCodec,
+                              outBufferIndex: Int, bufferInfo: MediaCodec.BufferInfo) {
+        checkBuffer(byteBuffer, bufferInfo)
+        sendBuffer(byteBuffer, bufferInfo)
+        mediaCodec.releaseOutputBuffer(outBufferIndex, false)
+    }
+
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     private fun createAsyncCallback() {
         callback = object : MediaCodec.Callback() {
-            override fun onInputBufferAvailable( mediaCodec: MediaCodec, inBufferIndex: Int) {
+            override fun onInputBufferAvailable(mediaCodec: MediaCodec, inBufferIndex: Int) {
                 try {
                     inputAvailable(mediaCodec, inBufferIndex, null)
                 } catch (e: IllegalStateException) {
@@ -388,8 +451,8 @@ override    protected fun getInputFrame(): Frame
                 }
             }
 
-            override fun onOutputBufferAvailable( mediaCodec: MediaCodec, outBufferIndex: Int,
-                                         bufferInfo: MediaCodec.BufferInfo) {
+            override fun onOutputBufferAvailable(mediaCodec: MediaCodec, outBufferIndex: Int,
+                                                 bufferInfo: MediaCodec.BufferInfo) {
                 try {
                     outputAvailable(mediaCodec, outBufferIndex, bufferInfo)
                 } catch (e: IllegalStateException) {
@@ -397,18 +460,39 @@ override    protected fun getInputFrame(): Frame
                 }
             }
 
-            override  fun onError( mediaCodec: MediaCodec,  e: MediaCodec.CodecException) {
+            override fun onError(mediaCodec: MediaCodec, e: MediaCodec.CodecException) {
                 Log.e(TAG, "Error", e)
             }
 
-            override fun onOutputFormatChanged( mediaCodec: MediaCodec,
-                                       mediaFormat: MediaFormat) {
+            override fun onOutputFormatChanged(mediaCodec: MediaCodec,
+                                               mediaFormat: MediaFormat) {
                 formatChanged(mediaCodec, mediaFormat)
             }
         }
     }
 
+    fun inputAvailable(mediaCodec: MediaCodec, inBufferIndex: Int, frame: Frame?) {
+        val byteBuffer: ByteBuffer
+        byteBuffer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mediaCodec.getInputBuffer(inBufferIndex)
+        } else {
+            mediaCodec.getInputBuffers().get(inBufferIndex)
+        }
+        processInput(byteBuffer, mediaCodec, inBufferIndex, frame)
+    }
+
+    fun outputAvailable(mediaCodec: MediaCodec, outBufferIndex: Int,
+                        bufferInfo: MediaCodec.BufferInfo) {
+        val byteBuffer: ByteBuffer
+        byteBuffer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mediaCodec.getOutputBuffer(outBufferIndex)
+        } else {
+            mediaCodec.getOutputBuffers().get(outBufferIndex)
+        }
+        processOutput(byteBuffer, mediaCodec, outBufferIndex, bufferInfo)
+    }
+
     companion object {
-        private val TAG: String? = "VideoEncoder"
+        private val TAG: String? = "WSVideoEncoder"
     }
 }
