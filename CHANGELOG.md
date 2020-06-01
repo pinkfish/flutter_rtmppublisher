@@ -4,6 +4,7 @@
 * Copy the video encoder from the pedro library and update
   to make it not message with sizes for the surface, but
   include the rotation to make rotation work without opengl.
+* Fix up issues with stopping on Android.
 
 ## 0.2.0
 

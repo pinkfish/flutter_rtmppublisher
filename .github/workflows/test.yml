@@ -19,8 +19,7 @@ jobs:
           - os: macos-latest
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
-      - run: bash ./setup-env.sh
-        working-directory: .github
+      - run: ./scripts/setup-env.sh
       - run: sudo mkdir ${ANDROID_HOME}/ndk
         if: startsWith(matrix.os,'ubuntu')
       - name: Cache ndk
