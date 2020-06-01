@@ -34,16 +34,16 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ${{ matrix.flutter_path }}
-          key: ${{ runner.OS }}-flutter-install-cache-${{ steps.dotenv.outputs.FLUTTER_VERSION }}
+          key: ${{ runner.OS }}-flutter-install-cache-${{ env.FLUTTER_VERSION }}
       - uses: actions/setup-java@v1
         with:
-          java-version: ${{ steps.dotenv.outputs.JAVA_VERSION }}
+          java-version: ${{ env.JAVA_VERSION }}
       - name: Install NDK
         run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
         if: startsWith(matrix.os,'ubuntu')
       - uses: subosito/flutter-action@v1
         with:
-          flutter-version: ${{ steps.dotenv.outputs.FLUTTER_VERSION }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
       - run: dart --version
       - run: flutter --version
