@@ -22,6 +22,8 @@ jobs:
       - name: Dotenv Action
         uses: falti/dotenv-action@v0.2.4
         id: dotenv
+        with:
+          path: .github 
       - run: sudo mkdir ${ANDROID_HOME}/ndk
         if: startsWith(matrix.os,'ubuntu')
       - name: Cache ndk
