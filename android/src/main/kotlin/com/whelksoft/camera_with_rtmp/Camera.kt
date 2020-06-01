@@ -150,11 +150,13 @@ class Camera(
                     }
 
                     override fun onDisconnected(cameraDevice: CameraDevice) {
+                        Log.v("Camera", "onDisconnected()")
                         close()
                         dartMessenger.send(DartMessenger.EventType.ERROR, "The camera was disconnected.")
                     }
 
                     override fun onError(cameraDevice: CameraDevice, errorCode: Int) {
+                        Log.v("Camera", "onError(" + errorCode + ")")
                         close()
                         val errorDescription: String
                         errorDescription = when (errorCode) {
@@ -256,7 +258,7 @@ class Camera(
         surfaceList.add(flutterSurface)
         requestBuilder.addTarget(flutterSurface)
         surfaceList.addAll(surfaces)
-        surfaceList.add(pictureImageReader!!.surface)
+        //surfaceList.add(pictureImageReader!!.surface)
         for (s in surfaces) {
             requestBuilder.addTarget(s)
         }
@@ -278,10 +280,13 @@ class Camera(
                     cameraCaptureSession = session
                     onSuccessCallback.run()
                 } catch (e: CameraAccessException) {
+                    Log.v("Camera", "Error CameraAccessException", e)
                     dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
                 } catch (e: IllegalStateException) {
+                    Log.v("Camera", "Error IllegalStateException", e)
                     dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
                 } catch (e: IllegalArgumentException) {
+                    Log.v("Camera", "Error IllegalArgumentException", e)
                     dartMessenger.send(DartMessenger.EventType.ERROR, e.message)
                 }
             }
@@ -321,7 +326,7 @@ class Camera(
     fun stopVideoRecordingOrStreaming(result: MethodChannel.Result) {
         Log.i("Camera", "stopVideoRecordingOrStreaming " + recordingRtmp + " : " + recordingVideo)
 
-        if (!recordingVideo && !recordingRtmp && rtmpCamera == null) {
+        if (!recordingVideo && !recordingRtmp) {
             result.success(null)
             return
         }
@@ -333,7 +338,7 @@ class Camera(
                 mediaRecorder = null
             }
 
-            if (recordingRtmp || rtmpCamera != null) {
+            if (recordingRtmp) {
                 currentRetries = 0
                 recordingRtmp = false
                 publishUrl = null
@@ -447,6 +452,8 @@ class Camera(
         if (cameraCaptureSession != null) {
             Log.v("Camera", "Close recoordingCaptureSession")
             try {
+                cameraCaptureSession!!.stopRepeating()
+                cameraCaptureSession!!.abortCaptures()
                 cameraCaptureSession!!.close()
             } catch (e: CameraAccessException) {
                 Log.w("RtmpCamera", "Error from camera", e)
