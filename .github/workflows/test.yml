@@ -55,6 +55,6 @@ jobs:
       - run: flutter build apk
         if: startsWith(matrix.os,'ubuntu')
         working-directory: example
-      - run: flutter build ios
+      - run: flutter build ios --debug --no-codesign
         if: startsWith(matrix.os,'macOS')
         working-directory: example
