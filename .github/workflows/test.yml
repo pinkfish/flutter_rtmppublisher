@@ -19,11 +19,7 @@ jobs:
           - os: macos-latest
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
-      - name: Dotenv Action
-        uses: falti/dotenv-action@v0.2.4
-        id: dotenv
-        with:
-          path: .github/.env
+      - run: .github/setup-env.sh
       - run: sudo mkdir ${ANDROID_HOME}/ndk
         if: startsWith(matrix.os,'ubuntu')
       - name: Cache ndk
