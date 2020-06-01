@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [ master ]
 
-env:
-  flutter_version: "1.17.1"
-  java_version: "12.x"
-
 jobs:
   test:
     name: Test on ${{ matrix.os }}
@@ -23,6 +19,9 @@ jobs:
           - os: macos-latest
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
+      - name: Dotenv Action
+        uses: falti/dotenv-action@v0.2.4
+        id: dotenv
       - run: sudo mkdir ${ANDROID_HOME}/ndk
         if: startsWith(matrix.os,'ubuntu')
       - name: Cache ndk
@@ -37,16 +36,16 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ${{ matrix.flutter_path }}
-          key: ${{ runner.OS }}-flutter-install-cache-${{ env.flutter_version }}
+          key: ${{ runner.OS }}-flutter-install-cache-${{ steps.dotenv.outputs.FLUTTER_VERSION }}
       - uses: actions/setup-java@v1
         with:
-          java-version: ${{ env.java_version }}
+          java-version: ${{ steps.dotenv.outputs.JAVA_VERSION }}
       - name: Install NDK
         run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;20.0.5594570" --sdk_root=${ANDROID_SDK_ROOT}
         if: startsWith(matrix.os,'ubuntu')
       - uses: subosito/flutter-action@v1
         with:
-          flutter-version: ${{ env.flutter_version }}
+          flutter-version: ${{ steps.dotenv.outputs.FLUTTER_VERSION }}
           channel: 'stable'
       - run: dart --version
       - run: flutter --version
