@@ -383,10 +383,12 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
     @kotlin.jvm.Throws(IllegalStateException::class)
     private fun processOutput(byteBuffer: ByteBuffer, mediaCodec: MediaCodec,
                               outBufferIndex: Int, bufferInfo: MediaCodec.BufferInfo) {
-        checkBuffer(byteBuffer, bufferInfo)
-        sendBuffer(byteBuffer, bufferInfo)
-        Log.e(TAG, "releaseOutputBuffer " + outBufferIndex)
-        mediaCodec.releaseOutputBuffer(outBufferIndex, false)
+        if (running) {
+            checkBuffer(byteBuffer, bufferInfo)
+            sendBuffer(byteBuffer, bufferInfo)
+            Log.e(TAG, "releaseOutputBuffer " + outBufferIndex)
+            mediaCodec.releaseOutputBuffer(outBufferIndex, false)
+        }
     }
 
 

@@ -1,3 +1,8 @@
+## 0.2.3
+
+* Fix restarting on android.  Can stop and restart now and
+it all works.
+
 ## 0.2.2
 
 * Fix the streaming to work with android.
