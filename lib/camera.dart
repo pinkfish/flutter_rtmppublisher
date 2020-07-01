@@ -295,6 +295,7 @@ class CameraController extends ValueNotifier<CameraValue> {
     this.resolutionPreset, {
     this.enableAudio = true,
     this.streamingPreset = null,
+    this.androidUseOpenGL = false,
   }) : super(const CameraValue.uninitialized());
 
   final CameraDescription description;
@@ -309,6 +310,7 @@ class CameraController extends ValueNotifier<CameraValue> {
   StreamSubscription<dynamic> _eventSubscription;
   StreamSubscription<dynamic> _imageStreamSubscription;
   Completer<void> _creatingCompleter;
+  final bool androidUseOpenGL;
 
   /// Initializes the camera on the device.
   ///
@@ -328,6 +330,7 @@ class CameraController extends ValueNotifier<CameraValue> {
           'streamingPreset':
               serializeResolutionPreset(streamingPreset ?? resolutionPreset),
           'enableAudio': enableAudio,
+          'enableAndroidOpenGL': androidUseOpenGL ?? false
         },
       );
       _textureId = reply['textureId'];
@@ -716,6 +719,13 @@ class CameraController extends ValueNotifier<CameraValue> {
       );
     }
 
+    if (filePath == null || url == null) {
+      throw CameraException(
+          "Null arguments",
+          "URL $url and path $filePath need to be not null to start "
+              "streaming and recording");
+    }
+
     try {
       await _channel.invokeMethod<void>(
           'startVideoRecordingAndStreaming', <String, dynamic>{
@@ -723,7 +733,6 @@ class CameraController extends ValueNotifier<CameraValue> {
         'url': url,
         'filePath': filePath,
         'bitrate': bitrate,
-        'enableAndroidOpenGL': androidUseOpenGL ?? false
       });
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
@@ -770,7 +779,6 @@ class CameraController extends ValueNotifier<CameraValue> {
         'textureId': _textureId,
         'url': url,
         'bitrate': bitrate,
-        'enableAndroidOpenGL': androidUseOpenGL ?? false
       });
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);

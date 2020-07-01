@@ -12,25 +12,31 @@ import android.util.Log
 import android.util.Pair
 import android.view.Surface
 import androidx.annotation.RequiresApi
-import com.pedro.encoder.BaseEncoder
-import com.pedro.encoder.Frame
 import com.pedro.encoder.input.video.FpsLimiter
-import com.pedro.encoder.input.video.GetCameraData
 import com.pedro.encoder.utils.CodecUtil
 import com.pedro.encoder.utils.yuv.YUVUtil
 import com.pedro.encoder.video.FormatVideoEncoder
 import com.pedro.encoder.video.GetVideoData
 import java.io.IOException
 import java.nio.ByteBuffer
-import java.util.ArrayList
 import java.util.List
-import java.util.concurrent.ArrayBlockingQueue
 
 /*
  * Encodes the data going over the wire to the backend system, this handles talking
  * with the media encoder framework and shuttling this over to the rtmp system itself.
  */
-class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: Int, var fps: Int, var bitrate: Int, val rotation: Int, val doRotation: Boolean, val iFrameInterval: Int, val formatVideoEncoder: FormatVideoEncoder, val avcProfile: Int = -1, val avcProfileLevel: Int = -1) {
+class VideoEncoder(
+        val getVideoData: GetVideoData,
+        val width: Int,
+        val height: Int,
+        var fps: Int,
+        var bitrate: Int,
+        val rotation: Int,
+        val doRotation: Boolean,
+        val iFrameInterval: Int,
+        val formatVideoEncoder: FormatVideoEncoder,
+        val avcProfile: Int = -1,
+        val avcProfileLevel: Int = -1) {
     private var spsPpsSetted = false
 
     // surface to buffer encoder
@@ -48,7 +54,7 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
     private val bufferInfo: MediaCodec.BufferInfo = MediaCodec.BufferInfo()
 
     @kotlin.jvm.Volatile
-    protected var running = false
+    public var running = false
 
     // The fps to limit at
     var limitFps = fps
@@ -56,7 +62,6 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
     /**
      * Prepare encoder.
      */
-    @kotlin.jvm.JvmOverloads
     fun prepare(): Boolean {
         val encoder: MediaCodecInfo? = chooseEncoder(type)
         var videoEncoder: FormatVideoEncoder? = this.formatVideoEncoder
@@ -77,16 +82,17 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
             val videoFormat: MediaFormat
             //if you dont use mediacodec rotation you need swap width and height in rotation 90 or 270
             // for correct encoding resolution
-            val resolution: String
-            resolution = height.toString() + "x" + width
-            videoFormat = MediaFormat.createVideoFormat(type, height, width)
+            val resolution: String = "" + width + "x" + height
+            videoFormat = MediaFormat.createVideoFormat(type, width, height)
             Log.i(TAG, "Prepare video info: " + videoEncoder!!.name.toString() + ", " + resolution)
             videoFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, videoEncoder!!.getFormatCodec())
             videoFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0)
             videoFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, iFrameInterval)
-            videoFormat.setInteger(MediaFormat.KEY_ROTATION, rotation)
+            if (rotation != 0) {
+                videoFormat.setInteger(MediaFormat.KEY_ROTATION, rotation)
+            }
             if (this.avcProfile > 0 && this.avcProfileLevel > 0) {
                 // MediaFormat.KEY_PROFILE, API > 21
                 videoFormat.setInteger(MediaFormat.KEY_PROFILE, this.avcProfile)
@@ -95,10 +101,8 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
             }
             codec!!.configure(videoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             running = false
-            if (videoEncoder === FormatVideoEncoder.SURFACE) {
-                isBufferMode = false
-                surface = codec!!.createInputSurface()
-            }
+            isBufferMode = false
+            surface = codec!!.createInputSurface()
             Log.i(TAG, "prepared")
             true
         } catch (e: IOException) {
@@ -208,14 +212,6 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
                 Log.e(TAG, "encoder need be running", e)
             }
         }
-    }
-
-    fun getInputSurface(): Surface? {
-        return surface
-    }
-
-    fun setInputSurface(inputSurface: Surface?) {
-        this.surface = surface
     }
 
     private fun sendSPSandPPS(mediaFormat: MediaFormat) {
@@ -342,6 +338,8 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
 
     @kotlin.jvm.Throws(IllegalStateException::class)
     protected fun getDataFromEncoder() {
+        Log.i(TAG, "getDataFromEncoder")
+
         while (running) {
             val outBufferIndex: Int = codec!!.dequeueOutputBuffer(bufferInfo, 1)
             if (outBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
@@ -386,14 +384,15 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
         if (running) {
             checkBuffer(byteBuffer, bufferInfo)
             sendBuffer(byteBuffer, bufferInfo)
-            Log.e(TAG, "releaseOutputBuffer " + outBufferIndex)
-            mediaCodec.releaseOutputBuffer(outBufferIndex, false)
         }
+        Log.e(TAG, "releaseOutputBuffer " + outBufferIndex)
+        mediaCodec.releaseOutputBuffer(outBufferIndex, false)
     }
 
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     private fun createAsyncCallback() {
+        Log.i(TAG, "createAsyncCallback")
         callback = object : MediaCodec.Callback() {
             override fun onInputBufferAvailable(mediaCodec: MediaCodec, inBufferIndex: Int) {
                Log.i(TAG, "onInputBufferAvailable ignored")
@@ -421,7 +420,7 @@ class VideoEncoder(val getVideoData: GetVideoData, val width: Int, val height: I
 
     fun outputAvailable(mediaCodec: MediaCodec, outBufferIndex: Int,
                         bufferInfo: MediaCodec.BufferInfo) {
-        Log.e(TAG, "outputAvailable")
+        Log.e(TAG, "outputAvailable " + outBufferIndex)
         val byteBuffer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             mediaCodec.getOutputBuffer(outBufferIndex)
         } else {

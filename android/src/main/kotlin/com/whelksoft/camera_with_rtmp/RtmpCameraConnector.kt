@@ -38,14 +38,18 @@ import java.util.*
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val connectChecker: ConnectCheckerRtmp) : GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback {
+class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val connectChecker: ConnectCheckerRtmp) :
+        GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback,
+        RecordController.Listener,  ConnectCheckerRtmp {
     private var videoEncoder: VideoEncoder? = null
     private var microphoneManager: MicrophoneManager
     private var audioEncoder: AudioEncoder
     private var srsFlvMuxer: SrsFlvMuxer
     private var curFps: Int
-    private var paused: Boolean = false
+    private var pausedStreaming: Boolean = false
+    private var pausedRecording: Boolean = false
     private val glInterface: OffScreenGlThread = OffScreenGlThread(context)
+    private var recordController: RecordController = RecordController()
 
     /**
      * Get stream state.
@@ -54,13 +58,15 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
      */
     var isStreaming = false
         private set
+    var isRecording = false
+        private set
 
     private val fpsListener = FpsListener()
 
     init {
         microphoneManager = MicrophoneManager(this)
         audioEncoder = AudioEncoder(this)
-        srsFlvMuxer = SrsFlvMuxer(connectChecker)
+        srsFlvMuxer = SrsFlvMuxer(this)
         fpsListener.setCallback(this)
         curFps = 0
         if (useOpenGL) {
@@ -121,7 +127,8 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
     fun prepareVideo(width: Int, height: Int, fps: Int, bitrate: Int, hardwareRotation: Boolean,
                      iFrameInterval: Int, rotation: Int, avcProfile: Int = -1, avcProfileLevel: Int =
                              -1): Boolean {
-        paused = false
+        pausedStreaming = false
+        pausedRecording = false
         videoEncoder = VideoEncoder(
                 this, width, height, fps, bitrate, rotation, hardwareRotation, iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
 
@@ -201,9 +208,30 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
      * startPreview for you to resolution seated in @prepareVideo.
      */
     fun startStream(url: String) {
+        if (isStreaming) {
+            return;
+        }
         isStreaming = true
-        startEncoders()
         startStreamRtp(url)
+    }
+
+    fun startRecord(path: String) {
+        if (isRecording) {
+            return;
+        }
+        recordController.startRecord(path, this)
+        isRecording = true
+        if (!isStreaming) {
+            startEncoders()
+        }
+    }
+
+    fun stopRecord() {
+        isRecording = false
+        recordController.stopRecord()
+        if (!isStreaming) {
+            stopStream()
+        }
     }
 
     fun startEncoders() {
@@ -223,18 +251,28 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
     fun stopStream() {
         isStreaming = false
         stopStreamRtp()
-        microphoneManager!!.stop()
-        videoEncoder!!.stop()
-        audioEncoder!!.stop()
-        glInterface.stop()
+        if (!isRecording) {
+           microphoneManager!!.stop()
+           videoEncoder!!.stop()
+           audioEncoder!!.stop()
+           glInterface.stop()
+        }
     }
 
     fun pauseStream() {
-        paused = true
+        pausedStreaming = true
     }
 
     fun resumeStream() {
-        paused = false
+        pausedStreaming = false
+    }
+
+    fun pauseRecord() {
+        pausedRecording = true
+    }
+
+    fun resumeRecord() {
+        pausedRecording = false
     }
 
     fun reTry(delay: Long, reason: String): Boolean {
@@ -361,10 +399,6 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
         return rate
     }
 
-    fun getResolutionValue(): Int {
-        return videoEncoder!!.width * videoEncoder!!.height
-    }
-
     fun getStreamWidth(): Int {
         return videoEncoder!!.width
     }
@@ -399,20 +433,22 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
 
 
     override fun getAacData(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        if (isStreaming && !paused) getAacDataRtp(aacBuffer, info)
+        if (isStreaming && !pausedStreaming) getAacDataRtp(aacBuffer, info)
+        if (isRecording && !pausedRecording) recordController.recordAudio(aacBuffer, info)
     }
 
     override fun onSpsPps(sps: ByteBuffer, pps: ByteBuffer) {
-        if (isStreaming && !paused) onSpsPpsVpsRtp(sps, pps, null)
+        if (isStreaming && !pausedStreaming) onSpsPpsVpsRtp(sps, pps, null)
     }
 
     override fun onSpsPpsVps(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer) {
-        if (isStreaming && !paused) onSpsPpsVpsRtp(sps, pps, vps)
+        if (isStreaming && !pausedStreaming) onSpsPpsVpsRtp(sps, pps, vps)
     }
 
     override fun getVideoData(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         fpsListener.calculateFps()
-        if (isStreaming && !paused) getH264DataRtp(h264Buffer, info)
+        if (isStreaming && !pausedStreaming) getH264DataRtp(h264Buffer, info)
+        if (isRecording && !pausedRecording) recordController.recordVideo(h264Buffer, info)
     }
 
     override fun inputPCMData(frame: Frame) {
@@ -437,8 +473,40 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
         srsFlvMuxer.sendVideo(h264Buffer, info)
     }
 
-    override fun onFps(fps: Int) {
+   override fun  onFps(fps: Int) {
         curFps = fps
     }
 
+    override fun onStatusChange(status: RecordController.Status) {
+    }
+
+
+    // Connect checker callback.
+    override fun onConnectionSuccessRtmp() {
+        // Succeessful connection, start the media stuff.
+        if (!videoEncoder!!.running) {
+            startEncoders()
+        }
+        connectChecker.onConnectionSuccessRtmp()
+    }
+
+    override fun onConnectionFailedRtmp(reason: String) {
+        connectChecker.onConnectionFailedRtmp(reason)
+    }
+
+    override fun onNewBitrateRtmp(bitrate: Long) {
+        connectChecker.onNewBitrateRtmp(bitrate)
+    }
+
+    override fun onDisconnectRtmp() {
+        connectChecker.onDisconnectRtmp()
+    }
+
+    override fun onAuthErrorRtmp() {
+        connectChecker.onAuthErrorRtmp()
+    }
+
+    override fun onAuthSuccessRtmp() {
+        connectChecker.onAuthSuccessRtmp()
+    }
 }

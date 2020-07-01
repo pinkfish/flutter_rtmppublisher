@@ -4,13 +4,10 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.graphics.ImageFormat
-import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
-import android.hardware.camera2.params.OutputConfiguration
 import android.media.CamcorderProfile
 import android.media.ImageReader
-import android.media.MediaRecorder
 import android.os.Build
 import android.util.Log
 import android.util.Size
@@ -37,7 +34,8 @@ class Camera(
         val cameraName: String,
         val resolutionPreset: String?,
         val streamingPreset: String?,
-        val enableAudio: Boolean) : ConnectCheckerRtmp {
+        val enableAudio: Boolean,
+        val useOpenGL: Boolean) : ConnectCheckerRtmp {
     private val cameraManager: CameraManager
     private val orientationEventListener: OrientationEventListener
     private val isFrontFacing: Boolean
@@ -48,10 +46,6 @@ class Camera(
     private var cameraCaptureSession: CameraCaptureSession? = null
     private var pictureImageReader: ImageReader? = null
     private var imageStreamReader: ImageReader? = null
-    private var captureRequestBuilder: CaptureRequest.Builder? = null
-    private var mediaRecorder: MediaRecorder? = null
-    private var recordingVideo = false
-    private var recordingRtmp = false
     private val recordingProfile: CamcorderProfile
     private val streamingProfile: CamcorderProfile
     private var currentOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
@@ -67,32 +61,7 @@ class Camera(
     }
 
     @Throws(IOException::class)
-    private fun prepareMediaRecorder(outputFilePath: String) {
-        if (mediaRecorder != null) {
-            mediaRecorder!!.release()
-        }
-        mediaRecorder = MediaRecorder()
-
-        // There's a specific order that mediaRecorder expects. Do not change the order
-        // of these function calls.
-        if (enableAudio) mediaRecorder!!.setAudioSource(MediaRecorder.AudioSource.MIC)
-        mediaRecorder!!.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-        mediaRecorder!!.setOutputFormat(recordingProfile.fileFormat)
-        if (enableAudio) mediaRecorder!!.setAudioEncoder(recordingProfile.audioCodec)
-        mediaRecorder!!.setVideoEncoder(recordingProfile.videoCodec)
-        mediaRecorder!!.setVideoEncodingBitRate(recordingProfile.videoBitRate)
-        if (enableAudio) mediaRecorder!!.setAudioSamplingRate(recordingProfile.audioSampleRate)
-        mediaRecorder!!.setVideoFrameRate(recordingProfile.videoFrameRate)
-        mediaRecorder!!.setVideoSize(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
-        mediaRecorder!!.setOutputFile(outputFilePath)
-        mediaRecorder!!.setOrientationHint(mediaOrientation)
-        mediaRecorder!!.prepare()
-        Log.v("Camera", "Video recorder " + recordingProfile.videoFrameWidth + "x" + recordingProfile.videoFrameHeight + "  " + recordingProfile.videoFrameRate + " fps "
-        )
-    }
-
-    @Throws(IOException::class)
-    private fun prepareRtmpPublished(url: String, fps: Int, bitrate: Int?, useOpenGL: Boolean) {
+    private fun prepareCameraForRecordAndStream(fps: Int, bitrate: Int?) {
         if (rtmpCamera != null) {
             rtmpCamera!!.stopStream()
             rtmpCamera = null
@@ -102,7 +71,12 @@ class Camera(
                 useOpenGL = useOpenGL,
                 connectChecker = this)
 
-        rtmpCamera!!.prepareAudio()
+        // Turn on audio if it is requested.
+        if (enableAudio) {
+            rtmpCamera!!.prepareAudio()
+        }
+
+        // Bitrate for the stream/recording.
         var bitrateToUse = bitrate
         if (bitrateToUse == null) {
             bitrateToUse = 1200 * 1024
@@ -112,9 +86,8 @@ class Camera(
                 streamingProfile.videoFrameHeight,
                 fps,
                 bitrateToUse,
-                true,
+                !useOpenGL,
                 mediaOrientation)
-        publishUrl = url
     }
 
 
@@ -238,15 +211,15 @@ class Camera(
 
     @Throws(CameraAccessException::class)
     private fun createCaptureSession(
-            templateType: Int, onSuccessCallback: Runnable, vararg surfaces: Surface
+            templateType: Int, onSuccessCallback: Runnable, surface: Surface
     ) {
         // Close the old session first.
         closeCaptureSession()
 
-        Log.v("Camera", "createCaptureSession ")
+        Log.v("Camera", "createCaptureSession " + previewSize.width + "x" + previewSize.height + " orientation: " + mediaOrientation)
 
         // Create a new capture builder.
-        val requestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
+        val requestBuilder = cameraDevice!!.createCaptureRequest(templateType)
 
         // Collect all surfaces we want to render to.
         val surfaceList: MutableList<Surface> = ArrayList()
@@ -255,13 +228,16 @@ class Camera(
         val surfaceTexture = flutterTexture.surfaceTexture()
         surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
         val flutterSurface = Surface(surfaceTexture)
-        surfaceList.add(flutterSurface)
+
+        // The capture request.
         requestBuilder.addTarget(flutterSurface)
-        surfaceList.addAll(surfaces)
-        //surfaceList.add(pictureImageReader!!.surface)
-        for (s in surfaces) {
-            requestBuilder.addTarget(s)
+        if (templateType != CameraDevice.TEMPLATE_PREVIEW) {
+            requestBuilder.addTarget(surface)
         }
+
+        // Create the surface lists for the capture session.
+        surfaceList.add(flutterSurface)
+        surfaceList.add(surface)
 
         // Prepare the callback
         val callback: CameraCaptureSession.StateCallback = object : CameraCaptureSession.StateCallback() {
@@ -299,7 +275,6 @@ class Camera(
 
         // Start the session
         cameraDevice!!.createCaptureSession(surfaceList, callback, null)
-        captureRequestBuilder = requestBuilder
     }
 
     fun startVideoRecording(filePath: String, result: MethodChannel.Result) {
@@ -308,12 +283,11 @@ class Camera(
             return
         }
         try {
-            prepareMediaRecorder(filePath)
-            recordingVideo = true
+            prepareCameraForRecordAndStream(recordingProfile.videoFrameRate, null)
             createCaptureSession(
                     CameraDevice.TEMPLATE_RECORD,
-                    Runnable { mediaRecorder!!.start() },
-                    mediaRecorder!!.surface
+                    Runnable { rtmpCamera!!.startRecord(filePath) },
+                    rtmpCamera!!.inputSurface
             )
             result.success(null)
         } catch (e: CameraAccessException) {
@@ -324,28 +298,18 @@ class Camera(
     }
 
     fun stopVideoRecordingOrStreaming(result: MethodChannel.Result) {
-        Log.i("Camera", "stopVideoRecordingOrStreaming " + recordingRtmp + " : " + recordingVideo)
+        Log.i("Camera", "stopVideoRecordingOrStreaming ")
 
-        if (!recordingVideo && !recordingRtmp) {
+        if (rtmpCamera == null) {
             result.success(null)
             return
         }
         try {
-            if (recordingVideo) {
-                recordingVideo = false
-                mediaRecorder!!.stop()
-                mediaRecorder!!.reset()
-                mediaRecorder = null
-            }
-
-            if (recordingRtmp) {
-                currentRetries = 0
-                recordingRtmp = false
-                publishUrl = null
-                if (rtmpCamera != null) {
-                    rtmpCamera!!.stopStream()
-                    rtmpCamera = null
-                }
+            currentRetries = 0
+            publishUrl = null
+            if (rtmpCamera != null) {
+                rtmpCamera!!.stopStream()
+                rtmpCamera = null
             }
 
             startPreview()
@@ -358,17 +322,12 @@ class Camera(
     }
 
     fun pauseVideoRecording(result: MethodChannel.Result) {
-        if (!recordingVideo) {
+        if (rtmpCamera == null || !rtmpCamera!!.isRecording) {
             result.success(null)
             return
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                mediaRecorder!!.pause()
-            } else {
-                result.error("videoRecordingFailed", "pauseVideoRecording requires Android API +24.", null)
-                return
-            }
+            rtmpCamera!!.pauseRecord()
         } catch (e: IllegalStateException) {
             result.error("videoRecordingFailed", e.message, null)
             return
@@ -377,18 +336,12 @@ class Camera(
     }
 
     fun resumeVideoRecording(result: MethodChannel.Result) {
-        if (!recordingVideo) {
+        if (rtmpCamera == null || !rtmpCamera!!.isRecording) {
             result.success(null)
             return
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                mediaRecorder!!.resume()
-            } else {
-                result.error(
-                        "videoRecordingFailed", "resumeVideoRecording requires Android API +24.", null)
-                return
-            }
+            rtmpCamera!!.resumeRecord()
         } catch (e: IllegalStateException) {
             result.error("videoRecordingFailed", e.message, null)
             return
@@ -398,7 +351,10 @@ class Camera(
 
     @Throws(CameraAccessException::class)
     fun startPreview() {
-        createCaptureSession(CameraDevice.TEMPLATE_PREVIEW, Runnable { })
+        createCaptureSession(
+                CameraDevice.TEMPLATE_PREVIEW,
+                Runnable { },
+        pictureImageReader!!.surface)
     }
 
     @Throws(CameraAccessException::class)
@@ -459,6 +415,8 @@ class Camera(
                 Log.w("RtmpCamera", "Error from camera", e)
             }
             cameraCaptureSession = null
+        } else {
+            Log.v("Camera", "No recoordingCaptureSession to close")
         }
     }
 
@@ -476,11 +434,6 @@ class Camera(
             imageStreamReader!!.close()
             imageStreamReader = null
         }
-        if (mediaRecorder != null) {
-            mediaRecorder!!.reset()
-            mediaRecorder!!.release()
-            mediaRecorder = null
-        }
         if (rtmpCamera != null) {
             rtmpCamera!!.stopStream()
             rtmpCamera = null
@@ -495,7 +448,7 @@ class Camera(
         orientationEventListener.disable()
     }
 
-    fun startVideoStreaming(url: String?, bitrate: Int?, useOpenGL: Boolean, result: MethodChannel.Result) {
+    fun startVideoStreaming(url: String?, bitrate: Int?, result: MethodChannel.Result) {
         if (url == null) {
             result.error("fileExists", "Must specify a url.", null)
             return
@@ -503,9 +456,7 @@ class Camera(
         try {
             // Setup the rtmp session
             currentRetries = 0
-            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate, useOpenGL)
-
-            recordingRtmp = true
+            prepareCameraForRecordAndStream(streamingProfile.videoFrameRate, bitrate)
 
             // Start capturing from the camera.
             createCaptureSession(
@@ -521,7 +472,7 @@ class Camera(
         }
     }
 
-    fun startVideoRecordingAndStreaming(filePath: String, url: String?, bitrate: Int?, useOpenGL: Boolean, result: MethodChannel.Result) {
+    fun startVideoRecordingAndStreaming(filePath: String, url: String?, bitrate: Int?, result: MethodChannel.Result) {
         if (File(filePath).exists()) {
             result.error("fileExists", "File at path '$filePath' already exists.", null)
             return
@@ -533,20 +484,14 @@ class Camera(
         try {
             // Setup the rtmp session
             currentRetries = 0
-            prepareRtmpPublished(url, streamingProfile.videoFrameRate, bitrate, useOpenGL)
-
-            // Setup the recorder.
-            prepareMediaRecorder(filePath)
-            recordingVideo = true
-            recordingRtmp = true
+            prepareCameraForRecordAndStream(streamingProfile.videoFrameRate, bitrate)
 
             createCaptureSession(
                     CameraDevice.TEMPLATE_RECORD,
                     Runnable {
-                        mediaRecorder!!.start()
                         rtmpCamera!!.startStream(url)
+                        rtmpCamera!!.startRecord(filePath)
                     },
-                    mediaRecorder!!.surface,
                     rtmpCamera!!.inputSurface
             )
             result.success(null)
@@ -559,7 +504,7 @@ class Camera(
 
 
     fun pauseVideoStreaming(result: MethodChannel.Result) {
-        if (!recordingRtmp) {
+        if (rtmpCamera == null || !rtmpCamera!!.isStreaming) {
             result.success(null)
             return
         }
@@ -597,7 +542,7 @@ class Camera(
     }
 
     fun resumeVideoStreaming(result: MethodChannel.Result) {
-        if (!recordingRtmp) {
+        if (rtmpCamera == null || !rtmpCamera!!.isStreaming) {
             result.success(null)
             return
         }

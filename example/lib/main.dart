@@ -225,8 +225,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
           color: Colors.blue,
           onPressed: controller != null &&
                   controller.value.isInitialized &&
-                  !controller.value.isRecordingVideo &&
-                  !controller.value.isStreamingVideoRtmp
+                  !controller.value.isRecordingVideo
               ? onVideoRecordButtonPressed
               : null,
         ),
@@ -235,23 +234,12 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
           color: Colors.blue,
           onPressed: controller != null &&
                   controller.value.isInitialized &&
-                  !controller.value.isStreamingVideoRtmp &&
-                  !controller.value.isRecordingVideo
+                  !controller.value.isStreamingVideoRtmp
               ? onVideoStreamingButtonPressed
               : null,
         ),
         IconButton(
-          icon: const Icon(Icons.ondemand_video),
-          color: Colors.blue,
-          onPressed: controller != null &&
-                  controller.value.isInitialized &&
-                  !controller.value.isStreamingVideoRtmp &&
-                  !controller.value.isRecordingVideo
-              ? onRecordingAndVideoStreamingButtonPressed
-              : null,
-        ),
-        IconButton(
-          icon: controller != null && controller.value.isRecordingPaused
+          icon: controller != null && (controller.value.isRecordingPaused || controller.isStreamingPaused)
               ? Icon(Icons.play_arrow)
               : Icon(Icons.pause),
           color: Colors.blue,
@@ -364,6 +352,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     startVideoRecording().then((String filePath) {
       if (mounted) setState(() {});
       if (filePath != null) showInSnackBar('Saving video to $filePath');
+      Wakelock.enable();
     });
   }
 
@@ -461,8 +450,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   }
 
   Future<void> stopVideoRecording() async {
-    if (!controller.value.isRecordingVideo ||
-        !controller.value.isStreamingVideoRtmp) {
+    if (!controller.value.isRecordingVideo) {
       return null;
     }
 
@@ -477,12 +465,13 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   }
 
   Future<void> pauseVideoRecording() async {
-    if (!controller.value.isRecordingVideo) {
-      return null;
-    }
-
     try {
-      await controller.pauseVideoRecording();
+     if (controllers.value.isRecordingVideo) {
+       await controller.pauseVideoRecording()
+     }
+     if (controllers.value.isStreamingVideoRtmp) {
+       await controller.pauseVideoStreaming()
+     }
     } on CameraException catch (e) {
       _showCameraException(e);
       rethrow;
@@ -490,12 +479,13 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   }
 
   Future<void> resumeVideoRecording() async {
-    if (!controller.value.isRecordingVideo) {
-      return null;
-    }
-
     try {
-      await controller.resumeVideoRecording();
+     if (controllers.value.isRecordingVideo) {
+       await controller.resumeVideoRecording();
+     }
+     if (controllers.value.isStreamingVideoRtmp) {
+       await controller.resumeVideoStreaming()
+     }
     } on CameraException catch (e) {
       _showCameraException(e);
       rethrow;
@@ -548,12 +538,18 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
 
     String myUrl = await _getUrl();
 
+    final Directory extDir = await getApplicationDocumentsDirectory();
+    final String dirPath = '${extDir.path}/Movies/flutter_test';
+    await Directory(dirPath).create(recursive: true);
+    final String filePath = '$dirPath/${timestamp()}.mp4';
+
     try {
       if (_timer != null) {
         _timer.cancel();
         _timer = null;
       }
       url = myUrl;
+      videoPath = filePath;
       await controller.startVideoRecordingAndStreaming(videoPath, url);
       _timer = Timer.periodic(Duration(seconds: 1), (timer) async {
         var stats = await controller.getStreamStatistics();

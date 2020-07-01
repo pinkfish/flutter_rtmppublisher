@@ -68,15 +68,10 @@ internal class MethodCallHandlerImpl(
                 if (call.hasArgument("bitrate")) {
                     bitrate = call.argument("bitrate")
                 }
-                var enableOpenGL = false
-                if (call.hasArgument("enableAndroidOpenGL")) {
-                    enableOpenGL = call.argument<Boolean>("enableAndroidOpenGL")!!
-                }
 
                 camera!!.startVideoStreaming(
                         call.argument("url"),
                         bitrate,
-                        enableOpenGL,
                         result)
             }
             "startVideoRecordingAndStreaming" -> {
@@ -93,13 +88,12 @@ internal class MethodCallHandlerImpl(
                         call.argument("filePath")!!,
                         call.argument("url"),
                         bitrate,
-                        enableOpenGL,
                         result)
             }
-            "pauseStreaming" -> {
+            "pauseVideoStreaming" -> {
                 camera!!.pauseVideoStreaming(result)
             }
-            "resumeStreaming" -> {
+            "resumeVideoStreaming" -> {
                 camera!!.resumeVideoStreaming(result)
             }
             "stopRecordingOrStreaming" -> {
@@ -155,6 +149,10 @@ internal class MethodCallHandlerImpl(
         val resolutionPreset = call.argument<String>("resolutionPreset")
         val streamingPreset = call.argument<String>("streamingPreset")
         val enableAudio = call.argument<Boolean>("enableAudio")!!
+        var enableOpenGL = false
+        if (call.hasArgument("enableAndroidOpenGL")) {
+            enableOpenGL = call.argument<Boolean>("enableAndroidOpenGL")!!
+        }
         val flutterSurfaceTexture = textureRegistry.createSurfaceTexture()
         val dartMessenger = DartMessenger(messenger, flutterSurfaceTexture.id())
         camera = Camera(
@@ -164,7 +162,8 @@ internal class MethodCallHandlerImpl(
                 cameraName!!,
                 resolutionPreset,
                 streamingPreset,
-                enableAudio)
+                enableAudio,
+                enableOpenGL)
         camera!!.open(result)
     }
 
