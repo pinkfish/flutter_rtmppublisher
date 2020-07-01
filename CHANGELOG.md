@@ -1,10 +1,10 @@
 ## 0.3.0
 
-* BREKING CHANGE: moved the useOpenGL call to the initialiation
+* BREAKING CHANGE: moved the useOpenGL call to the initialiation
 of the sytem and not to each call.
 * Allow the recording/streaming to work independently on
 android.
-* Change how the recroding/streaming happens to avoid issues with
+* Change how the recording/streaming happens to avoid issues with
 the camera2 api.
 
 ## 0.2.3
