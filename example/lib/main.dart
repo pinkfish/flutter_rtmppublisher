@@ -239,7 +239,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
               : null,
         ),
         IconButton(
-          icon: controller != null && (controller.value.isRecordingPaused || controller.isStreamingPaused)
+          icon: controller != null && (controller.value.isRecordingPaused || controller.value.isStreamingPaused)
               ? Icon(Icons.play_arrow)
               : Icon(Icons.pause),
           color: Colors.blue,
@@ -466,11 +466,11 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
 
   Future<void> pauseVideoRecording() async {
     try {
-     if (controllers.value.isRecordingVideo) {
-       await controller.pauseVideoRecording()
+     if (controller.value.isRecordingVideo) {
+       await controller.pauseVideoRecording();
      }
-     if (controllers.value.isStreamingVideoRtmp) {
-       await controller.pauseVideoStreaming()
+     if (controller.value.isStreamingVideoRtmp) {
+       await controller.pauseVideoStreaming();
      }
     } on CameraException catch (e) {
       _showCameraException(e);
@@ -480,11 +480,11 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
 
   Future<void> resumeVideoRecording() async {
     try {
-     if (controllers.value.isRecordingVideo) {
+     if (controller.value.isRecordingVideo) {
        await controller.resumeVideoRecording();
      }
-     if (controllers.value.isStreamingVideoRtmp) {
-       await controller.resumeVideoStreaming()
+     if (controller.value.isStreamingVideoRtmp) {
+       await controller.resumeVideoStreaming();
      }
     } on CameraException catch (e) {
       _showCameraException(e);
