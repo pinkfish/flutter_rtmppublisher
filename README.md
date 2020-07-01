@@ -53,6 +53,14 @@ Change the minimum Android sdk version to 21 (or higher) in your `android/app/bu
 minSdkVersion 21
 ```
 
+Need to add in a section to the packaging options to exclude a file, or gradle will error on building.
+
+```
+packagingOptions {
+   exclude 'project.clj'
+}
+```
+
 ### Example
 
 Here is a small example flutter app displaying a full screen camera preview.
