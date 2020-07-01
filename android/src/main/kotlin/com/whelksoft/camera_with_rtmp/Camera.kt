@@ -283,12 +283,17 @@ class Camera(
             return
         }
         try {
-            prepareCameraForRecordAndStream(recordingProfile.videoFrameRate, null)
-            createCaptureSession(
-                    CameraDevice.TEMPLATE_RECORD,
-                    Runnable { rtmpCamera!!.startRecord(filePath) },
-                    rtmpCamera!!.inputSurface
-            )
+            // If we are already setup we just start the recording part of everything instead.
+            if (rtmpCamera == null) {
+                prepareCameraForRecordAndStream(recordingProfile.videoFrameRate, null)
+                createCaptureSession(
+                        CameraDevice.TEMPLATE_RECORD,
+                        Runnable { rtmpCamera!!.startRecord(filePath) },
+                        rtmpCamera!!.inputSurface
+                )
+            } else {
+                rtmpCamera!!.startRecord(filePath)
+            }
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoRecordingFailed", e.message, null)
@@ -455,15 +460,19 @@ class Camera(
         }
         try {
             // Setup the rtmp session
-            currentRetries = 0
-            prepareCameraForRecordAndStream(streamingProfile.videoFrameRate, bitrate)
+            if (rtmpCamera == null) {
+                currentRetries = 0
+                prepareCameraForRecordAndStream(streamingProfile.videoFrameRate, bitrate)
 
-            // Start capturing from the camera.
-            createCaptureSession(
-                    CameraDevice.TEMPLATE_RECORD,
-                    Runnable { rtmpCamera!!.startStream(url) },
-                    rtmpCamera!!.inputSurface
-            )
+                // Start capturing from the camera.
+                createCaptureSession(
+                        CameraDevice.TEMPLATE_RECORD,
+                        Runnable { rtmpCamera!!.startStream(url) },
+                        rtmpCamera!!.inputSurface
+                )
+            } else {
+                rtmpCamera!!.startStream(url)
+            }
             result.success(null)
         } catch (e: CameraAccessException) {
             result.error("videoStreamingFailed", e.message, null)

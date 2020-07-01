@@ -433,8 +433,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
     await Directory(dirPath).create(recursive: true);
     final String filePath = '$dirPath/${timestamp()}.mp4';
 
-    if (controller.value.isRecordingVideo ||
-        controller.value.isStreamingVideoRtmp) {
+    if (controller.value.isRecordingVideo) {
       // A recording is already started, do nothing.
       return null;
     }
@@ -568,8 +567,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
       return null;
     }
 
-    if (controller.value.isStreamingVideoRtmp ||
-        controller.value.isStreamingVideoRtmp) {
+    if (controller.value.isStreamingVideoRtmp) {
       return null;
     }
 
