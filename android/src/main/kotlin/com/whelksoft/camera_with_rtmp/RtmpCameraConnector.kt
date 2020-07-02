@@ -77,10 +77,10 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
         if (useOpenGL) {
             glInterface.init()
         }
-        ORIENTATIONS.append(0, 90)
+        ORIENTATIONS.append(0, 270)
         ORIENTATIONS.append(90, 0)
-        ORIENTATIONS.append(180, 270)
-        ORIENTATIONS.append(270, 180)
+        ORIENTATIONS.append(180, 90)
+        ORIENTATIONS.append(270, 0)
     }
 
     /**

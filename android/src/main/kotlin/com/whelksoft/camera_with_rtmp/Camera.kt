@@ -70,7 +70,7 @@ class Camera(
             rtmpCamera = null
         }
         Log.i(TAG, "prepareCameraForRecordAndStream(opengl=" + useOpenGL+ ", portrait: " + isPortrait +   ", currentOrientation: " + currentOrientation + ", mediaOrientation: " + mediaOrientation
-         + ")" )
+         + ", frontfacing: " + isFrontFacing + ")" )
         rtmpCamera = RtmpCameraConnector(
                 context = activity!!.applicationContext!!,
                 useOpenGL = useOpenGL,
@@ -232,7 +232,7 @@ class Camera(
         // Close the old session first.
         closeCaptureSession()
 
-        Log.v("Camera", "createCaptureSession " + previewSize.width + "x" + previewSize.height + " orientation: " + mediaOrientation + " currentOrientation: " + currentOrientation + " sensorOrientation: " + sensorOrientation + " porteait: " + isPortrait)
+        Log.v("Camera", "createCaptureSession " + previewSize.width + "x" + previewSize.height + " mediaOrientation: " + mediaOrientation + " currentOrientation: " + currentOrientation + " sensorOrientation: " + sensorOrientation + " porteait: " + isPortrait)
 
         // Create a new capture builder.
         val requestBuilder = cameraDevice!!.createCaptureRequest(templateType)
@@ -649,7 +649,7 @@ class Camera(
             val pt = Point()
             getOrient.getSize(pt)
 
-            if (pt.x === pt.y) {
+            if (pt.x == pt.y) {
                 return true
             } else {
                 if (pt.x < pt.y) {
