@@ -45,6 +45,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   VideoPlayerController videoController;
   VoidCallback videoPlayerListener;
   bool enableAudio = true;
+  bool useOpenGL = true;
   TextEditingController _textFieldController = TextEditingController(
       text: "rtmp://34.70.40.166:1935/LiveApp/815794454132232781694481");
 
@@ -309,6 +310,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
       cameraDescription,
       ResolutionPreset.medium,
       enableAudio: enableAudio,
+      androidUseOpenGL: useOpenGL,
     );
 
     // If the controller is updated then update the UI.

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.graphics.ImageFormat
+import android.graphics.Point
 import android.hardware.camera2.*
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
 import android.media.CamcorderProfile
@@ -11,8 +12,10 @@ import android.media.ImageReader
 import android.os.Build
 import android.util.Log
 import android.util.Size
+import android.util.SparseIntArray
 import android.view.OrientationEventListener
 import android.view.Surface
+import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import com.pedro.rtplibrary.util.BitrateAdapter
 import io.flutter.plugin.common.EventChannel
@@ -66,9 +69,12 @@ class Camera(
             rtmpCamera!!.stopStream()
             rtmpCamera = null
         }
+        Log.i(TAG, "prepareCameraForRecordAndStream(opengl=" + useOpenGL+ ", portrait: " + isPortrait +   ", currentOrientation: " + currentOrientation + ", mediaOrientation: " + mediaOrientation
+         + ")" )
         rtmpCamera = RtmpCameraConnector(
                 context = activity!!.applicationContext!!,
                 useOpenGL = useOpenGL,
+                isPortrait =  isPortrait,
                 connectChecker = this)
 
         // Turn on audio if it is requested.
@@ -81,9 +87,10 @@ class Camera(
         if (bitrateToUse == null) {
             bitrateToUse = 1200 * 1024
         }
+
         rtmpCamera!!.prepareVideo(
-                streamingProfile.videoFrameWidth,
-                streamingProfile.videoFrameHeight,
+                if (!isPortrait) streamingProfile.videoFrameWidth else streamingProfile.videoFrameHeight,
+                if (!isPortrait) streamingProfile.videoFrameHeight else streamingProfile.videoFrameWidth,
                 fps,
                 bitrateToUse,
                 !useOpenGL,
@@ -96,6 +103,7 @@ class Camera(
     fun open(result: MethodChannel.Result) {
         pictureImageReader = ImageReader.newInstance(
                 captureSize.width, captureSize.height, ImageFormat.JPEG, 2)
+
 
         // Used to steam image byte data to dart side.
         cameraManager.openCamera(
@@ -112,8 +120,16 @@ class Camera(
                         }
                         val reply: MutableMap<String, Any> = HashMap()
                         reply["textureId"] = flutterTexture.id()
-                        reply["previewWidth"] = previewSize.width
-                        reply["previewHeight"] = previewSize.height
+
+                        if (isPortrait) {
+                            reply["previewWidth"] = previewSize.width
+                            reply["previewHeight"] = previewSize.height
+                        } else {
+                            reply["previewWidth"] = previewSize.height
+                            reply["previewHeight"] = previewSize.width
+                        }
+                        reply["previewQuarterTurns"] = currentOrientation / 90
+                        Log.i(TAG, "open: width: " + reply["previewWidth"] + " height: " + reply["previewHeight"] + " currentOrientation: " + currentOrientation + " quarterTurns: " + reply["previewQuarterTurns"])
                         result.success(reply)
                     }
 
@@ -216,7 +232,7 @@ class Camera(
         // Close the old session first.
         closeCaptureSession()
 
-        Log.v("Camera", "createCaptureSession " + previewSize.width + "x" + previewSize.height + " orientation: " + mediaOrientation)
+        Log.v("Camera", "createCaptureSession " + previewSize.width + "x" + previewSize.height + " orientation: " + mediaOrientation + " currentOrientation: " + currentOrientation + " sensorOrientation: " + sensorOrientation + " porteait: " + isPortrait)
 
         // Create a new capture builder.
         val requestBuilder = cameraDevice!!.createCaptureRequest(templateType)
@@ -226,7 +242,11 @@ class Camera(
 
         // Build Flutter surface to render to
         val surfaceTexture = flutterTexture.surfaceTexture()
-        surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
+        if (isPortrait) {
+            surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
+        } else {
+            surfaceTexture.setDefaultBufferSize(previewSize.height, previewSize.width)
+        }
         val flutterSurface = Surface(surfaceTexture)
 
         // The capture request.
@@ -304,6 +324,55 @@ class Camera(
 
     fun stopVideoRecordingOrStreaming(result: MethodChannel.Result) {
         Log.i("Camera", "stopVideoRecordingOrStreaming ")
+
+        if (rtmpCamera == null) {
+            result.success(null)
+            return
+        }
+        try {
+            currentRetries = 0
+            publishUrl = null
+            if (rtmpCamera != null) {
+                rtmpCamera!!.stopRecord()
+                rtmpCamera!!.stopStream()
+                rtmpCamera = null
+            }
+
+            startPreview()
+            result.success(null)
+        } catch (e: CameraAccessException) {
+            result.error("videoRecordingFailed", e.message, null)
+        } catch (e: IllegalStateException) {
+            result.error("videoRecordingFailed", e.message, null)
+        }
+    }
+
+    fun stopVideoRecording(result: MethodChannel.Result) {
+        Log.i("Camera", "stopVideoRecording")
+
+        if (rtmpCamera == null) {
+            result.success(null)
+            return
+        }
+        try {
+            currentRetries = 0
+            publishUrl = null
+            if (rtmpCamera != null) {
+                rtmpCamera!!.stopRecord()
+                rtmpCamera = null
+            }
+
+            startPreview()
+            result.success(null)
+        } catch (e: CameraAccessException) {
+            result.error("videoRecordingFailed", e.message, null)
+        } catch (e: IllegalStateException) {
+            result.error("videoRecordingFailed", e.message, null)
+        }
+    }
+
+    fun stopVideoStreaming(result: MethodChannel.Result) {
+        Log.i("Camera", "stopVideoRecording")
 
         if (rtmpCamera == null) {
             result.success(null)
@@ -566,9 +635,29 @@ class Camera(
 
 
     private val mediaOrientation: Int
-        private get() {
-            val sensorOrientationOffset = if (currentOrientation == OrientationEventListener.ORIENTATION_UNKNOWN) 0 else if (isFrontFacing) -currentOrientation else currentOrientation
+         get() {
+            val sensorOrientationOffset = if (isFrontFacing)
+                -currentOrientation
+            else
+                currentOrientation
             return (sensorOrientationOffset + sensorOrientation + 360) % 360
+        }
+
+    private val isPortrait: Boolean
+        get() {
+            val getOrient = activity!!.getWindowManager().getDefaultDisplay()
+            val pt = Point()
+            getOrient.getSize(pt)
+
+            if (pt.x === pt.y) {
+                return true
+            } else {
+                if (pt.x < pt.y) {
+                    return true
+                } else {
+                    return false
+                }
+            }
         }
 
     init {
@@ -581,12 +670,17 @@ class Camera(
                 }
                 // Convert the raw deg angle to the nearest multiple of 90.
                 currentOrientation = Math.round(i / 90.0).toInt() * 90
+                // Send a message with the new orientation to the ux.
+                dartMessenger.send(DartMessenger.EventType.ROTATION_UPDATE, (currentOrientation / 90).toString())
+
+                Log.i(TAG, "Updated Orientation (sent) " + currentOrientation + " -- " + (currentOrientation / 90).toString())
             }
         }
         orientationEventListener.enable()
         val characteristics = cameraManager.getCameraCharacteristics(cameraName)
-        sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
         isFrontFacing = characteristics.get(CameraCharacteristics.LENS_FACING) == CameraMetadata.LENS_FACING_FRONT
+        sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
+        currentOrientation = Math.round(activity.resources.configuration.orientation / 90.0).toInt() * 90
         val preset = ResolutionPreset.valueOf(resolutionPreset!!)
         recordingProfile = CameraUtils.getBestAvailableCamcorderProfileForResolutionPreset(cameraName, preset)
         captureSize = Size(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
@@ -651,5 +745,9 @@ class Camera(
         activity!!.runOnUiThread {
             dartMessenger.send(DartMessenger.EventType.RTMP_STOPPED, "Disconnected")
         }
+    }
+
+    companion object {
+        private val TAG: String? = "FlutterCamera"
     }
 }

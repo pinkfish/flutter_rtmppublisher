@@ -11,7 +11,7 @@ class DartMessenger(messenger: BinaryMessenger, eventChannelId: Long) {
     private var eventSink: EventSink? = null
 
     enum class EventType {
-        ERROR, CAMERA_CLOSING, RTMP_CONNECTED, RTMP_STOPPED, RTMP_RETRY
+        ERROR, CAMERA_CLOSING, RTMP_STOPPED, RTMP_RETRY, ROTATION_UPDATE
     }
 
     fun sendCameraClosingEvent() {
@@ -25,7 +25,7 @@ class DartMessenger(messenger: BinaryMessenger, eventChannelId: Long) {
         val event: MutableMap<String, String?> = HashMap()
         event["eventType"] = eventType.toString().toLowerCase()
         // Only errors have a description.
-        if (eventType == EventType.ERROR && !TextUtils.isEmpty(description)) {
+        if (!TextUtils.isEmpty(description)) {
             event["errorDescription"] = description
         }
         eventSink!!.success(event)

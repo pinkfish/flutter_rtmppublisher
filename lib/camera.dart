@@ -176,7 +176,11 @@ class CameraPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return controller.value.isInitialized
-        ? Texture(textureId: controller._textureId)
+        ? controller.value.previewSize.width < controller.value.previewSize.height ?
+        RotatedBox(
+        quarterTurns: controller.value.previewQuarterTurns,
+        child:
+        Texture(textureId: controller._textureId)) : Texture(textureId: controller._textureId)
         : Container();
   }
 }
@@ -187,6 +191,7 @@ class CameraValue {
     this.isInitialized,
     this.errorDescription,
     this.previewSize,
+    this.previewQuarterTurns,
     this.isRecordingVideo,
     this.isTakingPicture,
     this.isStreamingImages,
@@ -205,6 +210,7 @@ class CameraValue {
           isStreamingVideoRtmp: false,
           isRecordingPaused: false,
           isStreamingPaused: false,
+          previewQuarterTurns: 0,
         );
 
   /// True after [CameraController.initialize] has completed successfully.
@@ -238,6 +244,11 @@ class CameraValue {
   /// Is `null` until  [isInitialized] is `true`.
   final Size previewSize;
 
+  /// The amount to rotate the preview by in quarter turns.
+  ///
+  /// Is `null` until  [isInitialized] is `true`.
+  final int previewQuarterTurns;
+
   /// Convenience getter for `previewSize.height / previewSize.width`.
   ///
   /// Can only be called when [initialize] is done.
@@ -253,6 +264,7 @@ class CameraValue {
     bool isStreamingImages,
     String errorDescription,
     Size previewSize,
+    int previewQuarterTurns,
     bool isRecordingPaused,
     bool isStreamingPaused,
   }) {
@@ -260,6 +272,7 @@ class CameraValue {
       isInitialized: isInitialized ?? this.isInitialized,
       errorDescription: errorDescription,
       previewSize: previewSize ?? this.previewSize,
+      previewQuarterTurns: previewQuarterTurns ?? this.previewQuarterTurns,
       isRecordingVideo: isRecordingVideo ?? this.isRecordingVideo,
       isStreamingVideoRtmp: isStreamingVideoRtmp ?? this.isStreamingVideoRtmp,
       isTakingPicture: isTakingPicture ?? this.isTakingPicture,
@@ -277,6 +290,7 @@ class CameraValue {
         'isInitialized: $isInitialized, '
         'errorDescription: $errorDescription, '
         'previewSize: $previewSize, '
+        'previewQuarterTurns: $previewQuarterTurns, '
         'isStreamingImages: $isStreamingImages, '
         'isStreamingVideoRtmp: $isStreamingVideoRtmp)';
   }
@@ -340,6 +354,7 @@ class CameraController extends ValueNotifier<CameraValue> {
           reply['previewWidth'].toDouble(),
           reply['previewHeight'].toDouble(),
         ),
+        previewQuarterTurns: reply['previewQuarterTurns'],
       );
     } on PlatformException catch (e) {
       throw CameraException(e.code, e.message);
@@ -406,6 +421,9 @@ class CameraController extends ValueNotifier<CameraValue> {
         break;
       case 'rtmp_stopped':
         value = value.copyWith(isStreamingVideoRtmp: false);
+        break;
+      case 'rotation_update':
+        value = value.copyWith(previewQuarterTurns: int.parse(event['errorDescription']));
         break;
     }
   }

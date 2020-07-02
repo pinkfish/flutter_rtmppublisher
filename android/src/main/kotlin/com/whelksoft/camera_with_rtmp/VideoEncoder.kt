@@ -90,9 +90,7 @@ class VideoEncoder(
             videoFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, iFrameInterval)
-            if (rotation != 0) {
-                videoFormat.setInteger(MediaFormat.KEY_ROTATION, rotation)
-            }
+            videoFormat.setInteger(MediaFormat.KEY_ROTATION, rotation)
             if (this.avcProfile > 0 && this.avcProfileLevel > 0) {
                 // MediaFormat.KEY_PROFILE, API > 21
                 videoFormat.setInteger(MediaFormat.KEY_PROFILE, this.avcProfile)
@@ -430,6 +428,6 @@ class VideoEncoder(
     }
 
     companion object {
-        private val TAG: String? = "WSVideoEncoder"
+        private val TAG: String? = "VideoEncoder"
     }
 }

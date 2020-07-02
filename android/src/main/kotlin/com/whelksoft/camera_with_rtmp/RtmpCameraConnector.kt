@@ -35,10 +35,12 @@ import net.ossrs.rtmp.SrsFlvMuxer
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
+import android.util.Log
+import android.util.SparseIntArray
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val connectChecker: ConnectCheckerRtmp) :
+class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPortrait: Boolean, val connectChecker: ConnectCheckerRtmp) :
         GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback,
         RecordController.Listener,  ConnectCheckerRtmp {
     private var videoEncoder: VideoEncoder? = null
@@ -61,6 +63,9 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
     var isRecording = false
         private set
 
+    // Orientations to setup the output rotations correctly.
+    private val ORIENTATIONS: SparseIntArray = SparseIntArray(4)
+
     private val fpsListener = FpsListener()
 
     init {
@@ -72,6 +77,10 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
         if (useOpenGL) {
             glInterface.init()
         }
+        ORIENTATIONS.append(0, 90)
+        ORIENTATIONS.append(90, 0)
+        ORIENTATIONS.append(180, 270)
+        ORIENTATIONS.append(270, 180)
     }
 
     /**
@@ -130,11 +139,11 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
         pausedStreaming = false
         pausedRecording = false
         videoEncoder = VideoEncoder(
-                this, width, height, fps, bitrate, rotation, hardwareRotation, iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
+                this, width, height, fps, bitrate, if (useOpenGL) 0 else rotation, hardwareRotation, iFrameInterval, FormatVideoEncoder.SURFACE, avcProfile, avcProfileLevel)
 
         val result = videoEncoder!!.prepare()
         if (useOpenGL) {
-            prepareGlInterface()
+            prepareGlInterface(ORIENTATIONS[rotation])
             glInterface.addMediaCodecSurface(videoEncoder!!.surface)
         }
         return result
@@ -148,15 +157,10 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
         return prepareVideo(width, height, fps, bitrate, hardwareRotation, 2, rotation)
     }
 
-    private fun prepareGlInterface() {
-        val isPortrait: Boolean = CameraHelper.isPortrait(context)
-        if (isPortrait) {
-            this.glInterface.setEncoderSize(videoEncoder!!.height, videoEncoder!!.width)
-        } else {
-            this.glInterface.setEncoderSize(videoEncoder!!.width, videoEncoder!!.height)
-        }
-        this.glInterface.setRotation(
-                if (videoEncoder!!.rotation === 0) 270 else videoEncoder!!.rotation - 90)
+    private fun prepareGlInterface(rotation: Int) {
+        Log.i(TAG, "prepareGlInterface " + rotation + " " + isPortrait);
+        this.glInterface.setEncoderSize(videoEncoder!!.width, videoEncoder!!.height)
+        this.glInterface.setRotation(rotation)
         this.glInterface.start()
     }
 
@@ -508,5 +512,9 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val conn
 
     override fun onAuthSuccessRtmp() {
         connectChecker.onAuthSuccessRtmp()
+    }
+
+    companion object {
+        private val TAG: String? = "RtmpCameraConnector"
     }
 }
