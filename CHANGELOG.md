@@ -1,3 +1,10 @@
+## 0.3.1
+
+* Streams correctly in all directions now with openGL.  Defaults to openGL being on
+in the example app
+* Changed the way the preview is displayed to do a boxrotation on the preview widget.
+Still a race condition here that means sometimes it doesn't update correctly.
+
 ## 0.3.0
 
 * BREAKING CHANGE: moved the useOpenGL call to the initialiation
