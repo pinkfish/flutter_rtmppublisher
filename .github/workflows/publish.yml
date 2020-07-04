@@ -31,6 +31,7 @@ jobs:
       - run: flutter pub get
       - run: flutter test
       - run: mkdir -p .pub-cache
+      - run: echo {{ FLUTTER_PUBCACHE }} > ~/.pub-cache/credentials.json
       - run: flutter pub publish --force
       - uses: EndBug/add-and-commit@v4
         with:
