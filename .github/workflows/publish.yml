@@ -30,8 +30,16 @@ jobs:
       - run: flutter --version
       - run: flutter pub get
       - run: flutter test
-      - run: flutter pub publish --force
-      - uses: EndBug/add-and-commit@v4
+      - run: mkdir -p .pub-cache
+      - name: Publish
+        uses: sakebook/actions-flutter-pub-publisher@v1.3.0
+        with:
+          credential: ${{ secrets.CREDENTIAL_JSON }}
+          flutter_package: true
+          skip_test: true
+          dry_run: false
+      - name: Add-and-commit
+        uses: EndBug/add-and-commit@v4
         with:
           author_name: David Bennett
           author_email: pinkfishfrog@gmail.com
