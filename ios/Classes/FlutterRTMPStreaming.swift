@@ -17,7 +17,7 @@ public class FlutterRTMPStreaming : NSObject {
     private var retries: Int = 0
     private let eventSink: FlutterEventSink
     private let myDelegate = MyRTMPStreamQoSDelagate()
-    private let rotationEffect = RotationEffect()
+    private var rotationEffect: RotationEffect?
     
     @objc
     public init(sink: @escaping FlutterEventSink) {
@@ -31,7 +31,6 @@ public class FlutterRTMPStreaming : NSObject {
             .sessionPreset: AVCaptureSession.Preset.hd1280x720,
             .continuousAutofocus: true,
             .continuousExposure: true
-            // .preferredVideoStabilizationMode: AVCaptureVideoStabilizationMode.auto
         ]
         rtmpConnection.addEventListener(.rtmpStatus, selector:#selector(rtmpStatusHandler), observer: self)
         rtmpConnection.addEventListener(.ioError, selector: #selector(rtmpErrorHandler), observer: self)
@@ -49,16 +48,23 @@ public class FlutterRTMPStreaming : NSObject {
             .bitrate: 1200 * 1024
         ]
         rtmpStream.captureSettings = [
-            .fps: 24
+            .fps: 30
         ]
         rtmpStream.delegate = myDelegate
-        rtmpStream.registerVideoEffect(rotationEffect)
         self.retries = 0
         // Run this on the ui thread.
         DispatchQueue.main.async {
             if let orientation = DeviceUtil.videoOrientation(by:  UIApplication.shared.statusBarOrientation) {
                 self.rtmpStream.orientation = orientation
                 print(String(format:"Orient %d", orientation.rawValue))
+                /*
+                self.rotationEffect = RotationEffect(orientation: orientation)
+                if (self.rtmpStream.registerVideoEffect(self.rotationEffect!)) {
+                    print("Added rotation effect");
+                }else {
+                    print("Failed to add rotation effect");
+                }
+ */
             }
             print("after womble")
             self.rtmpConnection.connect(self.url ?? "frog")
@@ -197,6 +203,7 @@ class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {
         }
         print("didPublishSufficientBW update: \(videoBitrate)")
         stream.videoSettings[.bitrate] = videoBitrate
+        print("didPublishSufficientBW update: \(stream.videoSettings[.bitrate])")
     }
     
     
@@ -218,17 +225,19 @@ class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {
 }
 
 final class RotationEffect: VideoEffect {
+    private let orientation: AVCaptureVideoOrientation
+    
+    init (orientation: AVCaptureVideoOrientation) {
+        self.orientation = orientation
+    }
     override func execute(_ image: CIImage, info: CMSampleBuffer?) -> CIImage {
-        guard #available(iOS 11.0, *),
-              let info = info,
-              let orientationAttachment = CMGetAttachment(info, key: RPVideoSampleOrientationKey as CFString, attachmentModeOut: nil) as? NSNumber,
-              let orientation = CGImagePropertyOrientation(rawValue: orientationAttachment.uint32Value) else {
-            return image
+        guard #available(iOS 11.0, *) else {
+                return image
         }
         switch orientation {
-        case .left:
+        case .landscapeLeft:
             return image.oriented(.right)
-        case .right:
+        case .landscapeRight:
             return image.oriented(.left)
         default:
             return image
