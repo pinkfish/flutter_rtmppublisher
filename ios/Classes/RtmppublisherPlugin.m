@@ -108,7 +108,7 @@ previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
     float yxAtan = (atan2(_motionManager.accelerometerData.acceleration.y,
                           _motionManager.accelerometerData.acceleration.x)) *
     180 / M_PI;
-    NSLog(@"getImageRotation: '%@'", yxAtan);
+    NSLog(@"getImageRotation: '%f'", yxAtan);
     if (isNearValue(-90.0, yxAtan)) {
         return UIImageOrientationRight;
     } else if (isNearValueABS(180.0, yxAtan)) {
@@ -733,7 +733,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         if (bitrate == nil || bitrate == 0) {
             bitrate = [NSNumber numberWithInt:160 * 1000];
         }
-        [_rtmpStream openWithUrl:url width: _streamingSize.width height: _streamingSize.height bitrate: bitrate];
+        [_rtmpStream openWithUrl:url width: _streamingSize.width height: _streamingSize.height bitrate: bitrate.integerValue];
         _isStreaming = YES;
         _isStreamingPaused = NO;
         _videoTimeOffset = CMTimeMake(0, 1);
