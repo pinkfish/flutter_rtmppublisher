@@ -1,3 +1,9 @@
+## 0.3.2
+
+* Fix up IOS to correctly handle recording/streaming independently.
+* Add in adaptive bit rate to IOS
+* Add in the stats callback (although less data to return)
+
 ## 0.3.1
 
 * Streams correctly in all directions now with openGL.  Defaults to openGL being on
