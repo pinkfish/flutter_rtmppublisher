@@ -198,7 +198,7 @@ class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {
     // detect upload insufficent BandWidth
     func didPublishInsufficientBW(_ stream:RTMPStream, withConnection:RTMPConnection) {
         guard let videoBitrate = stream.videoSettings[.bitrate] as? UInt32 else { return }
-       
+        
         var         newVideoBitrate = UInt32(videoBitrate / 2)
         if newVideoBitrate < minBitrate {
             newVideoBitrate = minBitrate
