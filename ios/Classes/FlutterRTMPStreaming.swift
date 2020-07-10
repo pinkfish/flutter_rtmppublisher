@@ -58,15 +58,14 @@ public class FlutterRTMPStreaming : NSObject {
                 self.rtmpStream.orientation = orientation
                 print(String(format:"Orient %d", orientation.rawValue))
                 /*
-                self.rotationEffect = RotationEffect(orientation: orientation)
-                if (self.rtmpStream.registerVideoEffect(self.rotationEffect!)) {
-                    print("Added rotation effect");
-                }else {
-                    print("Failed to add rotation effect");
-                }
- */
+                 self.rotationEffect = RotationEffect(orientation: orientation)
+                 if (self.rtmpStream.registerVideoEffect(self.rotationEffect!)) {
+                 print("Added rotation effect");
+                 }else {
+                 print("Failed to add rotation effect");
+                 }
+                 */
             }
-            print("after womble")
             self.rtmpConnection.connect(self.url ?? "frog")
         }
     }
@@ -195,29 +194,26 @@ class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {
     
     func didPublishSufficientBW(_ stream: RTMPStream, withConnection: RTMPConnection) {
         guard var videoBitrate = stream.videoSettings[.bitrate] as? UInt32 else { return }
-        print("didPublishSufficientBW \(videoBitrate)")
         
-        videoBitrate = videoBitrate + incrementBitrate
-        if videoBitrate > maxBitrate {
-            videoBitrate = maxBitrate
+        var newVideoBitrate = videoBitrate + incrementBitrate
+        if newVideoBitrate > maxBitrate {
+            newVideoBitrate = maxBitrate
         }
-        print("didPublishSufficientBW update: \(videoBitrate)")
-        stream.videoSettings[.bitrate] = videoBitrate
-        print("didPublishSufficientBW update: \(stream.videoSettings[.bitrate])")
+        print("didPublishSufficientBW update: \(videoBitrate) -> \(newVideoBitrate)")
+        stream.videoSettings[.bitrate] = newVideoBitrate
     }
     
     
     // detect upload insufficent BandWidth
     func didPublishInsufficientBW(_ stream:RTMPStream, withConnection:RTMPConnection) {
         guard var videoBitrate = stream.videoSettings[.bitrate] as? UInt32 else { return }
-        print("didPublishInsufficientBW \(videoBitrate)")
-        
-        videoBitrate = UInt32(videoBitrate / 2)
-        if videoBitrate < minBitrate {
-            videoBitrate = minBitrate
+       
+        var         newVideoBitrate = UInt32(videoBitrate / 2)
+        if newVideoBitrate < minBitrate {
+            newVideoBitrate = minBitrate
         }
-        print("didPublishInsufficientBW update: \(videoBitrate)")
-        stream.videoSettings[.bitrate] = videoBitrate
+        print("didPublishInsufficientBW update: \(videoBitrate) -> \(newVideoBitrate)")
+        stream.videoSettings[.bitrate] = newVideoBitrate
     }
     
     func clear() {
@@ -232,7 +228,7 @@ final class RotationEffect: VideoEffect {
     }
     override func execute(_ image: CIImage, info: CMSampleBuffer?) -> CIImage {
         guard #available(iOS 11.0, *) else {
-                return image
+            return image
         }
         switch orientation {
         case .landscapeLeft:
