@@ -35,7 +35,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.2.2"
+    version: "0.3.2"
   charcode:
     dependency: transitive
     description:

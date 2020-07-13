@@ -56,6 +56,14 @@ public class FlutterRTMPStreaming : NSObject {
             if let orientation = DeviceUtil.videoOrientation(by:  UIApplication.shared.statusBarOrientation) {
                 self.rtmpStream.orientation = orientation
                 print(String(format:"Orient %d", orientation.rawValue))
+                switch (orientation) {
+                case .landscapeLeft, .landscapeRight:
+                    self.rtmpStream.videoSettings[.width] = height;
+                    self.rtmpStream.videoSettings[.height] = height;
+                    break;
+                default:
+                    break;
+                }
             }
             self.rtmpConnection.connect(self.url ?? "frog")
         }
