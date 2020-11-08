@@ -36,6 +36,11 @@ public class FlutterRTMPStreaming : NSObject {
         
         let uri = URL(string: url)
         self.name = uri?.pathComponents.last
+        if let query = uri?.query {
+            if let lname = name {
+                name = Optional(lname + "?" + query)
+            }
+        }
         var bits = url.components(separatedBy: "/")
         bits.removeLast()
         self.url = bits.joined(separator: "/")
