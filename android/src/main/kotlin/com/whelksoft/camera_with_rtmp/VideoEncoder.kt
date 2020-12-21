@@ -424,7 +424,7 @@ class VideoEncoder(
         } else {
             mediaCodec.getOutputBuffers().get(outBufferIndex)
         }
-        processOutput(byteBuffer, mediaCodec, outBufferIndex, bufferInfo)
+        processOutput(byteBuffer!!, mediaCodec, outBufferIndex, bufferInfo)
     }
 
     companion object {
