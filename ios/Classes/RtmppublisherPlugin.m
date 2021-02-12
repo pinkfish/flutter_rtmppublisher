@@ -893,6 +893,60 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     return YES;
 }
 
+- (void)getMaxZoomLevelWithResult:(FlutterResult)result {
+    CGFloat maxZoomFactor = [self getMaxAvailableZoomFactor];
+
+    result([NSNumber numberWithFloat:maxZoomFactor]);
+}
+
+- (void)getMinZoomLevelWithResult:(FlutterResult)result {
+    CGFloat minZoomFactor = [self getMinAvailableZoomFactor];
+
+    result([NSNumber numberWithFloat:minZoomFactor]);
+}
+
+- (void)setZoomLevel:(CGFloat)zoom Result:(FlutterResult)result {
+    CGFloat maxAvailableZoomFactor = [self getMaxAvailableZoomFactor];
+    CGFloat minAvailableZoomFactor = [self getMinAvailableZoomFactor];
+
+    if (maxAvailableZoomFactor < zoom || minAvailableZoomFactor > zoom) {
+        NSString *errorMessage = [NSString
+            stringWithFormat:@"Zoom level out of bounds (zoom level should be between %f and %f).",
+                            minAvailableZoomFactor, maxAvailableZoomFactor];
+        FlutterError *error = [FlutterError errorWithCode:@"ZOOM_ERROR"
+                                                message:errorMessage
+                                                details:nil];
+        result(error);
+        return;
+    }
+
+    NSError *error = nil;
+    if (![_captureDevice lockForConfiguration:&error]) {
+        result(getFlutterError(error));
+        return;
+    }
+    [_captureDevice rampToVideoZoomFactor:zoom withRate:1];
+    [_captureDevice unlockForConfiguration];
+
+    result(nil);
+}
+
+- (CGFloat)getMinAvailableZoomFactor {
+    if (@available(iOS 11.0, *)) {
+        return _captureDevice.minAvailableVideoZoomFactor;
+    } else {
+        return 1.0;
+    }
+}
+
+- (CGFloat)getMaxAvailableZoomFactor {
+    if (@available(iOS 11.0, *)) {
+        return _captureDevice.maxAvailableVideoZoomFactor;
+    } else {
+        return _captureDevice.activeFormat.videoMaxZoomFactor;
+    }
+}
+
 - (BOOL)setupWriterForPath:(NSString *)path {
     NSError *error = nil;
     NSURL *outputURL;
@@ -1139,6 +1193,13 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
             [_camera stopVideoRecordingWithResult:result];
         } else if ([@"stopRecordingOrStreaming" isEqualToString:call.method]) {
             [_camera stopVideoRecordingOrStreamingWithResult:result];
+        } else if ([@"getMaxZoomLevel" isEqualToString:call.method]) {
+            [_camera getMaxZoomLevelWithResult:result];
+        } else if ([@"getMinZoomLevel" isEqualToString:call.method]) {
+            [_camera getMinZoomLevelWithResult:result];
+        } else if ([@"setZoomLevel" isEqualToString:call.method]) {
+            CGFloat zoom = ((NSNumber *)argsMap[@"zoom"]).floatValue;
+            [_camera setZoomLevel:zoom Result:result];
         } else {
             result(FlutterMethodNotImplemented);
         }

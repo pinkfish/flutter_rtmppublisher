@@ -49,6 +49,12 @@ abstract class CameraConfigurator {
   /// Stops the flow of data between the inputs and outputs connected to the camera instance.
   Future<void> stop();
 
+  Future<double> getMaxZoomLevel();
+
+  Future<double> getMinZoomLevel();
+
+  Future<void> setZoomLevel(double zoom);
+
   /// Dispose all resources and disables further use of this configurator.
   Future<void> dispose();
 

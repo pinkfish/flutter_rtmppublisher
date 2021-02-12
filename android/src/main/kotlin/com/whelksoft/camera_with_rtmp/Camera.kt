@@ -5,17 +5,17 @@ import android.app.Activity
 import android.content.Context
 import android.graphics.ImageFormat
 import android.graphics.Point
+import android.graphics.Rect
 import android.hardware.camera2.*
+import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
 import android.media.CamcorderProfile
 import android.media.ImageReader
 import android.os.Build
 import android.util.Log
 import android.util.Size
-import android.util.SparseIntArray
 import android.view.OrientationEventListener
 import android.view.Surface
-import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import com.pedro.rtplibrary.util.BitrateAdapter
 import io.flutter.plugin.common.EventChannel
@@ -28,6 +28,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
+
 
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 class Camera(
@@ -57,6 +58,8 @@ class Camera(
     private val maxRetries = 3
     private var currentRetries = 0
     private var publishUrl: String? = null
+    private var cameraZoom: CameraZoom? = null
+    private var captureRequestBuilder: CaptureRequest.Builder? = null
 
     // Mirrors camera.dart
     enum class ResolutionPreset {
@@ -69,12 +72,12 @@ class Camera(
             rtmpCamera!!.stopStream()
             rtmpCamera = null
         }
-        Log.i(TAG, "prepareCameraForRecordAndStream(opengl=" + useOpenGL+ ", portrait: " + isPortrait +   ", currentOrientation: " + currentOrientation + ", mediaOrientation: " + mediaOrientation
-         + ", frontfacing: " + isFrontFacing + ")" )
+        Log.i(TAG, "prepareCameraForRecordAndStream(opengl=" + useOpenGL + ", portrait: " + isPortrait + ", currentOrientation: " + currentOrientation + ", mediaOrientation: " + mediaOrientation
+                + ", frontfacing: " + isFrontFacing + ")")
         rtmpCamera = RtmpCameraConnector(
                 context = activity!!.applicationContext!!,
                 useOpenGL = useOpenGL,
-                isPortrait =  isPortrait,
+                isPortrait = isPortrait,
                 connectChecker = this)
 
         // Turn on audio if it is requested.
@@ -224,7 +227,6 @@ class Camera(
         }
     }
 
-
     @Throws(CameraAccessException::class)
     private fun createCaptureSession(
             templateType: Int, onSuccessCallback: Runnable, surface: Surface
@@ -235,7 +237,7 @@ class Camera(
         Log.v("Camera", "createCaptureSession " + previewSize.width + "x" + previewSize.height + " mediaOrientation: " + mediaOrientation + " currentOrientation: " + currentOrientation + " sensorOrientation: " + sensorOrientation + " porteait: " + isPortrait)
 
         // Create a new capture builder.
-        val requestBuilder = cameraDevice!!.createCaptureRequest(templateType)
+        captureRequestBuilder = cameraDevice!!.createCaptureRequest(templateType)
 
         // Collect all surfaces we want to render to.
         val surfaceList: MutableList<Surface> = ArrayList()
@@ -250,9 +252,9 @@ class Camera(
         val flutterSurface = Surface(surfaceTexture)
 
         // The capture request.
-        requestBuilder.addTarget(flutterSurface)
+        captureRequestBuilder!!.addTarget(flutterSurface)
         if (templateType != CameraDevice.TEMPLATE_PREVIEW) {
-            requestBuilder.addTarget(surface)
+            captureRequestBuilder!!.addTarget(surface)
         }
 
         // Create the surface lists for the capture session.
@@ -270,9 +272,9 @@ class Camera(
                         return
                     }
                     Log.v("Camera", "open successful ")
-                    requestBuilder.set(
+                    captureRequestBuilder!!.set(
                             CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
-                    session.setRepeatingRequest(requestBuilder.build(), null, null)
+                    session.setRepeatingRequest(captureRequestBuilder!!.build(), null, null)
                     cameraCaptureSession = session
                     onSuccessCallback.run()
                 } catch (e: CameraAccessException) {
@@ -428,7 +430,7 @@ class Camera(
         createCaptureSession(
                 CameraDevice.TEMPLATE_PREVIEW,
                 Runnable { },
-        pictureImageReader!!.surface)
+                pictureImageReader!!.surface)
     }
 
     @Throws(CameraAccessException::class)
@@ -633,6 +635,35 @@ class Camera(
         result.success(null)
     }
 
+    fun getMaxZoomLevel(): Float {
+        return cameraZoom!!.maxZoom
+    }
+
+    fun getMinZoomLevel(): Float {
+        return CameraZoom.DEFAULT_ZOOM_FACTOR
+    }
+
+    fun setZoomLevel(result: MethodChannel.Result, zoom: Float) {
+        val maxZoom: Float? = cameraZoom?.maxZoom
+        val minZoom = CameraZoom.DEFAULT_ZOOM_FACTOR
+        if (zoom > maxZoom!! || zoom < minZoom) {
+            val errorMessage = java.lang.String.format(
+                    Locale.ENGLISH,
+                    "Zoom level out of bounds (zoom level should be between %f and %f).",
+                    minZoom,
+                    maxZoom)
+            result.error("ZOOM_ERROR", errorMessage, null)
+            return
+        }
+
+        //Zoom area is calculated relative to sensor area (activeRect)
+        if (captureRequestBuilder != null) {
+            val computedZoom: Rect? = cameraZoom?.computeZoom(zoom)
+            captureRequestBuilder!!.set(CaptureRequest.SCALER_CROP_REGION, computedZoom)
+            cameraCaptureSession!!.setRepeatingRequest(captureRequestBuilder!!.build(), null, null)
+        }
+        result.success(null)
+    }
 
     private val mediaOrientation: Int
          get() {
@@ -685,7 +716,9 @@ class Camera(
         recordingProfile = CameraUtils.getBestAvailableCamcorderProfileForResolutionPreset(cameraName, preset)
         captureSize = Size(recordingProfile.videoFrameWidth, recordingProfile.videoFrameHeight)
         previewSize = CameraUtils.computeBestPreviewSize(cameraName, preset)
-
+        cameraZoom = CameraZoom(
+                characteristics[CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE],
+                characteristics[CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM])
         // Data for streaming, different than the recording data.
         val streamPreset = ResolutionPreset.valueOf(streamingPreset!!)
         streamingProfile = CameraUtils.getBestAvailableCamcorderProfileForResolutionPreset(cameraName, streamPreset)

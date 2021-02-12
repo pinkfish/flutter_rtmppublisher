@@ -130,6 +130,36 @@ internal class MethodCallHandlerImpl(
                     handleException(e, result)
                 }
             }
+            "getMaxZoomLevel" -> {
+                try {
+                    result.success(camera!!.getMaxZoomLevel())
+                } catch (e: Exception) {
+                    handleException(e, result);
+                }
+            }
+            "getMinZoomLevel" -> {
+                try {
+                    result.success(camera!!.getMinZoomLevel());
+                } catch (e: Exception) {
+                    handleException(e, result);
+                }
+            }
+            "setZoomLevel" -> {
+                val zoom = call.argument<Double>("zoom");
+
+                if (zoom == null) {
+                    result.error(
+                        "ZOOM_ERROR", "setZoomLevel is called without specifying a zoom level.", null);
+                }
+
+                try {
+                    if (zoom != null) {
+                        camera!!.setZoomLevel(result, zoom.toFloat())
+                    };
+                } catch (e: Exception) {
+                    handleException(e, result);
+                }
+            }
             "dispose" -> {
                 if (camera != null) {
                     camera!!.dispose()

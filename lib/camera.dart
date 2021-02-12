@@ -176,11 +176,12 @@ class CameraPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return controller.value.isInitialized
-        ? controller.value.previewSize.width < controller.value.previewSize.height ?
-        RotatedBox(
-        quarterTurns: controller.value.previewQuarterTurns,
-        child:
-        Texture(textureId: controller._textureId)) : Texture(textureId: controller._textureId)
+        ? controller.value.previewSize.width <
+                controller.value.previewSize.height
+            ? RotatedBox(
+                quarterTurns: controller.value.previewQuarterTurns,
+                child: Texture(textureId: controller._textureId))
+            : Texture(textureId: controller._textureId)
         : Container();
   }
 }
@@ -423,7 +424,8 @@ class CameraController extends ValueNotifier<CameraValue> {
         value = value.copyWith(isStreamingVideoRtmp: false);
         break;
       case 'rotation_update':
-        value = value.copyWith(previewQuarterTurns: int.parse(event['errorDescription']));
+        value = value.copyWith(
+            previewQuarterTurns: int.parse(event['errorDescription']));
         break;
     }
   }
@@ -908,6 +910,67 @@ class CameraController extends ValueNotifier<CameraValue> {
       await _channel.invokeMethod<void>(
         'resumeVideoStreaming',
         <String, dynamic>{'textureId': _textureId},
+      );
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
+  }
+
+  /// Gets the maximum supported zoom level for the selected camera.
+  Future<double> getMaxZoomLevel() async {
+    if (!value.isInitialized || _isDisposed) {
+      throw CameraException(
+        'Uninitialized CameraController',
+        'getMaxZoomLevel was called on uninitialized CameraController',
+      );
+    }
+
+    try {
+      return await _channel.invokeMethod<double>(
+        'getMaxZoomLevel',
+        <String, dynamic>{'textureId': _textureId},
+      );
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
+  }
+
+  /// Gets the minimum supported zoom level for the selected camera.
+  Future<double> getMinZoomLevel() async {
+    if (!value.isInitialized || _isDisposed) {
+      throw CameraException(
+        'Uninitialized CameraController',
+        'getMinZoomLevel was called on uninitialized CameraController',
+      );
+    }
+
+    try {
+      return await _channel.invokeMethod<double>(
+        'getMaxZoomLevel',
+        <String, dynamic>{'textureId': _textureId},
+      );
+    } on PlatformException catch (e) {
+      throw CameraException(e.code, e.message);
+    }
+  }
+
+  /// Set the zoom level for the selected camera.
+  ///
+  /// The supplied [zoom] value should be between 1.0 and the maximum supported
+  /// zoom level returned by the `getMaxZoomLevel`. Throws an `CameraException`
+  /// when an illegal zoom level is suplied.
+  Future<void> setZoomLevel(double zoom) async {
+    if (!value.isInitialized || _isDisposed) {
+      throw CameraException(
+        'Uninitialized CameraController',
+        'setZoomLevel was called on uninitialized CameraController',
+      );
+    }
+
+    try {
+      await _channel.invokeMethod<void>(
+        'setZoomLevel',
+        <String, dynamic>{'textureId': _textureId, 'zoom': zoom},
       );
     } on PlatformException catch (e) {
       throw CameraException(e.code, e.message);

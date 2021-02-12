@@ -133,6 +133,34 @@ class CameraController {
     return configurator.stop();
   }
 
+  /// Gets the maximum supported zoom level for the selected camera.
+  Future<double> getMaxZoomLevel() {
+    assert(!_isDisposed, _isDisposedMessage);
+    assert(_instance != this, _isNotInitializedMessage);
+
+    return configurator.getMaxZoomLevel();
+  }
+
+  /// Gets the minimum supported zoom level for the selected camera.
+  Future<double> getMinZoomLevel() {
+    assert(!_isDisposed, _isDisposedMessage);
+    assert(_instance != this, _isNotInitializedMessage);
+
+    return configurator.getMinZoomLevel();
+  }
+
+  /// Set the zoom level for the selected camera.
+  ///
+  /// The supplied [zoom] value should be between 1.0 and the maximum supported
+  /// zoom level returned by the `getMaxZoomLevel`. Throws an `CameraException`
+  /// when an illegal zoom level is suplied.
+  Future<void> setZoomLevel(double zoom) {
+    assert(!_isDisposed, _isDisposedMessage);
+    assert(_instance != this, _isNotInitializedMessage);
+
+    return configurator.setZoomLevel(zoom);
+  }
+
   /// Deallocate all resources and disables further use of the controller.
   Future<void> dispose() {
     _instance = null;
