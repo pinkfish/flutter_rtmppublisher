@@ -29,12 +29,6 @@ jobs:
             ${ANDROID_HOME}/ndk
           key: ${{ runner.os }}-ndk
       - uses: actions/checkout@v1
-      - run: ./scripts/setup-env.sh
-      - name: Cache Flutter dependencies
-        uses: actions/cache@v1
-        with:
-          path: ${{ matrix.flutter_path }}
-          key: ${{ runner.OS }}-flutter-install-cache-${{ env.FLUTTER_VERSION }}
       - uses: actions/setup-java@v1
         with:
           java-version: ${{ env.JAVA_VERSION }}
@@ -43,7 +37,6 @@ jobs:
         if: startsWith(matrix.os,'ubuntu')
       - uses: subosito/flutter-action@v1
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
       - run: dart --version
       - run: flutter --version
