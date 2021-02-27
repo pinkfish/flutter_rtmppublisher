@@ -19,7 +19,7 @@ jobs:
           - os: macos-latest
             flutter_path: /Users/runner/hostedtoolcache/flutter    
     steps:
-      - run: sudo mkdir ${ANDROID_HOME}/ndk
+      - run: sudo mkdir -p ${ANDROID_HOME}/ndk
         if: startsWith(matrix.os,'ubuntu')
       - name: Cache ndk
         uses: actions/cache@v2
