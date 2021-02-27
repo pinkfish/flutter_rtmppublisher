@@ -48,7 +48,7 @@ object CameraUtils {
             val characteristics = cameraManager.getCameraCharacteristics(cameraName)
             details["name"] = cameraName
             val sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
-            details["sensorOrientation"] = sensorOrientation
+            details["sensorOrientation"] = sensorOrientation!!
             val lensFacing = characteristics.get(CameraCharacteristics.LENS_FACING)
             when (lensFacing) {
                 CameraMetadata.LENS_FACING_FRONT -> details["lensFacing"] = "front"
