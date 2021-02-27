@@ -10,18 +10,12 @@ jobs:
     name: Publish to pub.dev
     steps:
       - uses: actions/checkout@v1
-      - run: ./scripts/setup-env.sh
       - uses: actions/setup-java@v1
         with:
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: '12.x'
       - uses: mikefarah/yq@3.3.0
         with: 
           cmd: yq w -i pubspec.yaml 'version' "${GITHUB_REF#refs/tags/}"
-      - name: Cache Flutter dependencies
-        uses: actions/cache@v1
-        with:
-          path: /opt/hostedtoolcache/flutter
-          key: ${{ runner.OS }}-flutter-install-cache-${{ env.FLUTTER_VERSION }}
       - uses: subosito/flutter-action@v1
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
