@@ -28,8 +28,8 @@ public class FlutterRTMPStreaming : NSObject {
         rtmpStream = RTMPStream(connection: rtmpConnection)
         rtmpStream.captureSettings = [
             .sessionPreset: AVCaptureSession.Preset.hd1280x720,
-            .continuousAutofocus: true,
-            .continuousExposure: true
+            .continuousAutofocus: false,
+            .continuousExposure: false
         ]
         rtmpConnection.addEventListener(.rtmpStatus, selector:#selector(rtmpStatusHandler), observer: self)
         rtmpConnection.addEventListener(.ioError, selector: #selector(rtmpErrorHandler), observer: self)
