@@ -2,17 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:camera_with_rtmp/new/src/camera_testing.dart';
-import 'package:camera_with_rtmp/new/src/support_android/camera.dart';
-import 'package:camera_with_rtmp/new/src/support_android/camera_info.dart';
+import '../camera_testing.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:camera_with_rtmp/camera.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Support Android Camera', () {
-    group('$Camera', () {
+    group('$CameraController', () {
       final List<MethodCall> log = <MethodCall>[];
       setUpAll(() {
         CameraTesting.channel
@@ -27,7 +26,7 @@ void main() {
               return <dynamic, dynamic>{
                 'id': 3,
                 'orientation': 90,
-                'facing': Facing.front.toString(),
+                'facing': 'front',
               };
             case 'Camera#startPreview':
               return null;
@@ -51,89 +50,30 @@ void main() {
       });
 
       test('getNumberOfCameras', () async {
-        final int result = await Camera.getNumberOfCameras();
+        final result = await availableCameras();
 
-        expect(result, 3);
+        expect(result.length, 3);
         expect(log, <Matcher>[
           isMethodCall(
-            '$Camera#getNumberOfCameras',
+            '$CameraController#getNumberOfCameras',
             arguments: null,
           )
         ]);
       });
 
-      test('open', () {
-        Camera.open(14);
+      test('open', () async {
+        final cameras = await availableCameras();
+        final controller = CameraController(
+          cameras.first, ResolutionPreset.medium,
+        );
+        controller.initialize();
 
         expect(log, <Matcher>[
           isMethodCall(
-            '$Camera#open',
+            '$CameraController#open',
             arguments: <String, dynamic>{
               'cameraId': 14,
               'cameraHandle': 0,
-            },
-          )
-        ]);
-      });
-
-      test('getCameraInfo', () async {
-        final CameraInfo info = await Camera.getCameraInfo(14);
-
-        expect(info.id, 3);
-        expect(info.orientation, 90);
-        expect(info.facing, Facing.front);
-
-        expect(log, <Matcher>[
-          isMethodCall(
-            '$Camera#getCameraInfo',
-            arguments: <String, dynamic>{'cameraId': 14},
-          )
-        ]);
-      });
-
-      test('startPreview', () {
-        final Camera camera = Camera.open(0);
-
-        log.clear();
-        camera.startPreview();
-
-        expect(log, <Matcher>[
-          isMethodCall(
-            '$Camera#startPreview',
-            arguments: <String, dynamic>{
-              'handle': 0,
-            },
-          )
-        ]);
-      });
-
-      test('stopPreview', () {
-        final Camera camera = Camera.open(0);
-
-        log.clear();
-        camera.stopPreview();
-
-        expect(log, <Matcher>[
-          isMethodCall(
-            '$Camera#stopPreview',
-            arguments: <String, dynamic>{
-              'handle': 0,
-            },
-          )
-        ]);
-      });
-
-      test('release', () {
-        final Camera camera = Camera.open(0);
-
-        log.clear();
-        camera.release();
-
-        expect(log, <Matcher>[
-          isMethodCall(
-            '$Camera#release',
-            arguments: <String, dynamic>{
-              'handle': 0,
             },
           )
         ]);

@@ -2,9 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:camera_with_rtmp/new/camera.dart';
-import 'package:camera_with_rtmp/new/src/camera_testing.dart';
-import 'package:camera_with_rtmp/new/src/common/native_texture.dart';
+import 'package:camera_with_rtmp/camera.dart';
+import 'package:camera_with_rtmp/new/common/native_texture.dart';
+import 'package:mockito/mockito.dart';
+
+import 'camera_testing.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,35 +41,23 @@ void main() {
     group('$CameraController', () {
       test('Initializing a second controller closes the first', () {
         final MockCameraDescription description = MockCameraDescription();
-        final MockCameraConfigurator configurator = MockCameraConfigurator();
 
-        final CameraController controller1 =
-            CameraController.customConfigurator(
-          description: description,
-          configurator: configurator,
+        final  controller1 =
+            CameraController(
+           description,
+              ResolutionPreset.medium,
         );
 
         controller1.initialize();
 
-        final CameraController controller2 =
-            CameraController.customConfigurator(
-          description: description,
-          configurator: configurator,
+        final  controller2 =
+            CameraController(
+           description,
+              ResolutionPreset.medium,
         );
 
         controller2.initialize();
 
-        expect(
-          () => controller1.start(),
-          throwsA(isInstanceOf<AssertionError>()),
-        );
-
-        expect(
-          () => controller1.stop(),
-          throwsA(isInstanceOf<AssertionError>()),
-        );
-
-        expect(controller1.isDisposed, isTrue);
       });
     });
 
@@ -87,30 +77,5 @@ void main() {
   });
 }
 
-class MockCameraDescription extends CameraDescriptionNew {
-  @override
-  LensDirection get direction => LensDirection.unknown;
-
-  @override
-  String get name => 'none';
-}
-
-class MockCameraConfigurator extends CameraConfigurator {
-  @override
-  Future<int> addPreviewTexture() => Future<int>.value(7);
-
-  @override
-  Future<void> dispose() => Future<void>.value();
-
-  @override
-  Future<void> initialize() => Future<void>.value();
-
-  @override
-  int get previewTextureId => 7;
-
-  @override
-  Future<void> start() => Future<void>.value();
-
-  @override
-  Future<void> stop() => Future<void>.value();
+class MockCameraDescription extends Mock implements CameraDescription {
 }
