@@ -23,7 +23,6 @@ jobs:
       - run: dart --version
       - run: flutter --version
       - run: flutter pub get
-      - run: flutter test
       - run: mkdir -p .pub-cache
       - name: Publish
         uses: sakebook/actions-flutter-pub-publisher@v1.3.0
