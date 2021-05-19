@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/foundation.dart';
-
 import '../common/camera_interface.dart';
 
 /// The direction that the camera faces.
@@ -14,10 +12,10 @@ enum Facing { back, front }
 /// Retrieved from [Camera.getCameraInfo].
 class CameraInfo implements CameraDescriptionNew {
   const CameraInfo({
-    @required this.id,
-    @required this.facing,
-    @required this.orientation,
-  })  : assert(id != null),
+    required this.id,
+    required this.facing,
+    required this.orientation,
+  })   : assert(id != null),
         assert(facing != null),
         assert(orientation != null);
 
@@ -55,14 +53,15 @@ class CameraInfo implements CameraDescriptionNew {
   String get name => id.toString();
 
   @override
-  LensDirection get direction {
+  LensDirection? get direction {
     switch (facing) {
       case Facing.front:
         return LensDirection.front;
       case Facing.back:
         return LensDirection.back;
-    }
 
-    return null;
+      default:
+        return null;
+    }
   }
 }

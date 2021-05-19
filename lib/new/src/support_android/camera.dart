@@ -23,8 +23,8 @@ class Camera with NativeMethodCallHandler {
   bool _isClosed = false;
 
   /// Retrieves the number of physical cameras available on this device.
-  static Future<int> getNumberOfCameras() {
-    return CameraChannel.channel.invokeMethod<int>(
+  static Future<int?> getNumberOfCameras() {
+    return CameraChannel.channel.invokeMethod<int?>(
       'Camera#getNumberOfCameras',
     );
   }
@@ -54,13 +54,13 @@ class Camera with NativeMethodCallHandler {
   ///
   /// If [getNumberOfCameras] returns N, the valid id is 0 to N-1.
   static Future<CameraInfo> getCameraInfo(int cameraId) async {
-    final Map<String, dynamic> infoMap =
+    final Map<String, dynamic>? infoMap =
         await CameraChannel.channel.invokeMapMethod<String, dynamic>(
       'Camera#getCameraInfo',
       <String, dynamic>{'cameraId': cameraId},
     );
 
-    return CameraInfo.fromMap(infoMap);
+    return CameraInfo.fromMap(infoMap!);
   }
 
   /// Sets the [NativeTexture] to be used for live preview.

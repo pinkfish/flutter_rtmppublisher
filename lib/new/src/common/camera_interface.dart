@@ -25,10 +25,10 @@ enum LensDirection { front, back, unknown }
 /// the lens face.
 abstract class CameraDescriptionNew {
   /// Location of the camera on the device.
-  LensDirection get direction;
+  LensDirection? get direction;
 
   /// Identifier for this camera.
-  String get name;
+  String? get name;
 }
 
 /// Abstract class used to create a common interface across platform APIs.

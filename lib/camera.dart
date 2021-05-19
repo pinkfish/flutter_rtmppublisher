@@ -76,11 +76,11 @@ CameraLensDirection _parseCameraLensDirection(String string) {
 /// Completes with a list of available cameras.
 ///
 /// May throw a [CameraException].
-Future<List<CameraDescription>> availableCameras() async {
+Future<List<CameraDescription>?> availableCameras() async {
   try {
-    final List<Map<dynamic, dynamic>> cameras = await _channel
+    final List<Map<dynamic, dynamic>>? cameras = await _channel
         .invokeListMethod<Map<dynamic, dynamic>>('availableCameras');
-    return cameras.map((Map<dynamic, dynamic> camera) {
+    return cameras?.map((Map<dynamic, dynamic> camera) {
       return CameraDescription(
         name: camera['name'],
         lensDirection: _parseCameraLensDirection(camera['lensFacing']),
@@ -88,15 +88,15 @@ Future<List<CameraDescription>> availableCameras() async {
       );
     }).toList();
   } on PlatformException catch (e) {
-    throw CameraException(e.code, e.message);
+    throw CameraException(e.code, e.message!);
   }
 }
 
 class CameraDescription {
   CameraDescription({this.name, this.lensDirection, this.sensorOrientation});
 
-  final String name;
-  final CameraLensDirection lensDirection;
+  String? name;
+  CameraLensDirection? lensDirection;
 
   /// Clockwise angle through which the output image needs to be rotated to be upright on the device screen in its native orientation.
   ///
@@ -105,7 +105,7 @@ class CameraDescription {
   ///
   /// On Android, also defines the direction of rolling shutter readout, which
   /// is from top to bottom in the sensor's coordinate system.
-  final int sensorOrientation;
+  int? sensorOrientation;
 
   @override
   bool operator ==(Object o) {
@@ -139,15 +139,15 @@ class StreamStatistics {
   final int height;
 
   StreamStatistics({
-    @required this.cacheSize,
-    @required this.sentAudioFrames,
-    @required this.sentVideoFrames,
-    @required this.droppedAudioFrames,
-    @required this.droppedVideoFrames,
-    @required this.bitrate,
-    @required this.width,
-    @required this.height,
-    @required this.isAudioMuted,
+    required this.cacheSize,
+    required this.sentAudioFrames,
+    required this.sentVideoFrames,
+    required this.droppedAudioFrames,
+    required this.droppedVideoFrames,
+    required this.bitrate,
+    required this.width,
+    required this.height,
+    required this.isAudioMuted,
   });
 
   @override
@@ -175,19 +175,20 @@ class CameraPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return controller.value.isInitialized
-        ? controller.value.previewSize.width < controller.value.previewSize.height ?
-        RotatedBox(
-        quarterTurns: controller.value.previewQuarterTurns,
-        child:
-        Texture(textureId: controller._textureId)) : Texture(textureId: controller._textureId)
+    return (controller.value.isInitialized ?? false)
+        ? controller.value.previewSize!.width <
+                controller.value.previewSize!.height
+            ? RotatedBox(
+                quarterTurns: (controller.value.previewQuarterTurns ?? 0),
+                child: Texture(textureId: controller._textureId))
+            : Texture(textureId: controller._textureId)
         : Container();
   }
 }
 
 /// The state of a [CameraController].
 class CameraValue {
-  const CameraValue({
+  CameraValue({
     this.isInitialized,
     this.errorDescription,
     this.previewSize,
@@ -196,12 +197,12 @@ class CameraValue {
     this.isTakingPicture,
     this.isStreamingImages,
     this.isStreamingVideoRtmp,
-    bool isRecordingPaused,
-    bool isStreamingPaused,
+    bool? isRecordingPaused,
+    bool? isStreamingPaused,
   })  : _isRecordingPaused = isRecordingPaused,
         _isStreamingPaused = isStreamingPaused;
 
-  const CameraValue.uninitialized()
+  CameraValue.uninitialized()
       : this(
           isInitialized: false,
           isRecordingVideo: false,
@@ -214,59 +215,61 @@ class CameraValue {
         );
 
   /// True after [CameraController.initialize] has completed successfully.
-  final bool isInitialized;
+  bool? isInitialized;
 
   /// True when a picture capture request has been sent but as not yet returned.
-  final bool isTakingPicture;
+  bool? isTakingPicture;
 
   /// True when the camera is recording (not the same as previewing).
-  final bool isRecordingVideo;
+  bool? isRecordingVideo;
 
   /// True when the camera is recording (not the same as previewing).
-  final bool isStreamingVideoRtmp;
+  bool? isStreamingVideoRtmp;
 
   /// True when images from the camera are being streamed.
-  final bool isStreamingImages;
+  bool? isStreamingImages;
 
-  final bool _isRecordingPaused;
-  final bool _isStreamingPaused;
+  bool? _isRecordingPaused;
+  bool? _isStreamingPaused;
 
   /// True when camera [isRecordingVideo] and recording is paused.
-  bool get isRecordingPaused => isRecordingVideo && _isRecordingPaused;
+  bool? get isRecordingPaused =>
+      (isRecordingVideo ?? false) && (_isRecordingPaused ?? false);
 
   /// True when camera [isRecordingVideo] and streaming is paused.
-  bool get isStreamingPaused => isStreamingVideoRtmp && _isStreamingPaused;
+  bool? get isStreamingPaused =>
+      (isStreamingVideoRtmp ?? false) && (_isStreamingPaused ?? false);
 
-  final String errorDescription;
+  String? errorDescription;
 
   /// The size of the preview in pixels.
   ///
   /// Is `null` until  [isInitialized] is `true`.
-  final Size previewSize;
+  Size? previewSize;
 
   /// The amount to rotate the preview by in quarter turns.
   ///
   /// Is `null` until  [isInitialized] is `true`.
-  final int previewQuarterTurns;
+  int? previewQuarterTurns;
 
   /// Convenience getter for `previewSize.height / previewSize.width`.
   ///
   /// Can only be called when [initialize] is done.
-  double get aspectRatio => previewSize.height / previewSize.width;
+  double? get aspectRatio => (previewSize?.height ?? 1) / (previewSize?.width ?? 1);
 
-  bool get hasError => errorDescription != null;
+  bool? get hasError => errorDescription != null;
 
   CameraValue copyWith({
-    bool isInitialized,
-    bool isRecordingVideo,
-    bool isStreamingVideoRtmp,
-    bool isTakingPicture,
-    bool isStreamingImages,
-    String errorDescription,
-    Size previewSize,
-    int previewQuarterTurns,
-    bool isRecordingPaused,
-    bool isStreamingPaused,
+    bool? isInitialized,
+    bool? isRecordingVideo,
+    bool? isStreamingVideoRtmp,
+    bool? isTakingPicture,
+    bool? isStreamingImages,
+    String? errorDescription,
+    Size? previewSize,
+    int? previewQuarterTurns,
+    bool? isRecordingPaused,
+    bool? isStreamingPaused,
   }) {
     return CameraValue(
       isInitialized: isInitialized ?? this.isInitialized,
@@ -308,23 +311,23 @@ class CameraController extends ValueNotifier<CameraValue> {
     this.description,
     this.resolutionPreset, {
     this.enableAudio = true,
-    this.streamingPreset = null,
+    this.streamingPreset,
     this.androidUseOpenGL = false,
-  }) : super(const CameraValue.uninitialized());
+  }) : super(CameraValue.uninitialized());
 
   final CameraDescription description;
   final ResolutionPreset resolutionPreset;
-  final ResolutionPreset streamingPreset;
+  ResolutionPreset? streamingPreset;
 
   /// Whether to include audio when recording a video.
-  final bool enableAudio;
+  bool? enableAudio;
 
-  int _textureId;
+  late int _textureId;
   bool _isDisposed = false;
-  StreamSubscription<dynamic> _eventSubscription;
-  StreamSubscription<dynamic> _imageStreamSubscription;
-  Completer<void> _creatingCompleter;
-  final bool androidUseOpenGL;
+  StreamSubscription<dynamic>? _eventSubscription;
+  StreamSubscription<dynamic>? _imageStreamSubscription;
+  late Completer<void> _creatingCompleter;
+   bool?  androidUseOpenGL;
 
   /// Initializes the camera on the device.
   ///
@@ -335,7 +338,7 @@ class CameraController extends ValueNotifier<CameraValue> {
     }
     try {
       _creatingCompleter = Completer<void>();
-      final Map<String, dynamic> reply =
+      final Map<String, dynamic>? reply =
           await _channel.invokeMapMethod<String, dynamic>(
         'initialize',
         <String, dynamic>{
@@ -347,7 +350,7 @@ class CameraController extends ValueNotifier<CameraValue> {
           'enableAndroidOpenGL': androidUseOpenGL ?? false
         },
       );
-      _textureId = reply['textureId'];
+      _textureId = reply!['textureId'];
       value = value.copyWith(
         isInitialized: true,
         previewSize: Size(
@@ -357,7 +360,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         previewQuarterTurns: reply['previewQuarterTurns'],
       );
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
     _eventSubscription = EventChannel(
             'plugins.flutter.io/camera_with_rtmp/cameraEvents$_textureId')
@@ -423,7 +426,8 @@ class CameraController extends ValueNotifier<CameraValue> {
         value = value.copyWith(isStreamingVideoRtmp: false);
         break;
       case 'rotation_update':
-        value = value.copyWith(previewQuarterTurns: int.parse(event['errorDescription']));
+        value = value.copyWith(
+            previewQuarterTurns: int.parse(event['errorDescription']));
         break;
     }
   }
@@ -438,13 +442,13 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// Throws a [CameraException] if the capture fails.
   Future<void> takePicture(String path) async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!(value.isInitialized!) || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController.',
         'takePicture was called on uninitialized CameraController',
       );
     }
-    if (value.isTakingPicture) {
+    if (value.isTakingPicture!) {
       throw CameraException(
         'Previous capture has not returned yet.',
         'takePicture was called before the previous capture returned.',
@@ -459,7 +463,7 @@ class CameraController extends ValueNotifier<CameraValue> {
       value = value.copyWith(isTakingPicture: false);
     } on PlatformException catch (e) {
       value = value.copyWith(isTakingPicture: false);
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -477,25 +481,25 @@ class CameraController extends ValueNotifier<CameraValue> {
   /// already started.
   // TODO(bmparr): Add settings for resolution and fps.
   Future<void> startImageStream(onLatestImageAvailable onAvailable) async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'startImageStream was called on uninitialized CameraController.',
       );
     }
-    if (value.isRecordingVideo) {
+    if (value.isRecordingVideo!) {
       throw CameraException(
         'A video recording is already started.',
         'startImageStream was called while a video is being recorded.',
       );
     }
-    if (value.isStreamingVideoRtmp) {
+    if (value.isStreamingVideoRtmp!) {
       throw CameraException(
         'A video recording is already started.',
         'startImageStream was called while a video is being recorded.',
       );
     }
-    if (value.isStreamingImages) {
+    if (value.isStreamingImages!) {
       throw CameraException(
         'A camera has started streaming images.',
         'startImageStream was called while a camera was streaming images.',
@@ -506,7 +510,7 @@ class CameraController extends ValueNotifier<CameraValue> {
       await _channel.invokeMethod<void>('startImageStream');
       value = value.copyWith(isStreamingImages: true);
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
     const EventChannel cameraEventChannel =
         EventChannel('plugins.flutter.io/camera_with_rtmp/imageStream');
@@ -523,13 +527,13 @@ class CameraController extends ValueNotifier<CameraValue> {
   /// Throws a [CameraException] if image streaming was not started or video
   /// recording was started.
   Future<void> stopImageStream() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'stopImageStream was called on uninitialized CameraController.',
       );
     }
-    if (!value.isStreamingImages) {
+    if (!value.isStreamingImages!) {
       throw CameraException(
         'No camera is streaming images',
         'stopImageStream was called when no camera is streaming images.',
@@ -540,10 +544,10 @@ class CameraController extends ValueNotifier<CameraValue> {
       value = value.copyWith(isStreamingImages: false);
       await _channel.invokeMethod<void>('stopImageStream');
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
 
-    await _imageStreamSubscription.cancel();
+    await _imageStreamSubscription?.cancel();
     _imageStreamSubscription = null;
   }
 
@@ -551,13 +555,13 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// Throws a [CameraException] if image streaming was not started.
   Future<StreamStatistics> getStreamStatistics() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'stopImageStream was called on uninitialized CameraController.',
       );
     }
-    if (!value.isStreamingVideoRtmp) {
+    if (!value.isStreamingVideoRtmp!) {
       throw CameraException(
         'No camera is streaming images',
         'stopImageStream was called when no camera is streaming images.',
@@ -568,7 +572,7 @@ class CameraController extends ValueNotifier<CameraValue> {
       var data = await _channel
           .invokeMapMethod<String, dynamic>('getStreamStatistics');
       return StreamStatistics(
-        sentAudioFrames: data["sentAudioFrames"],
+        sentAudioFrames: data!["sentAudioFrames"],
         sentVideoFrames: data["sentVideoFrames"],
         height: data["height"],
         width: data["width"],
@@ -579,7 +583,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         droppedVideoFrames: data["droppedVideoFrames"],
       );
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -594,19 +598,19 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// Throws a [CameraException] if the capture fails.
   Future<void> startVideoRecording(String filePath) async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'startVideoRecording was called on uninitialized CameraController',
       );
     }
-    if (value.isRecordingVideo) {
+    if (value.isRecordingVideo!) {
       throw CameraException(
         'A video recording is already started.',
         'startVideoRecording was called when a recording is already started.',
       );
     }
-    if (value.isStreamingImages) {
+    if (value.isStreamingImages!) {
       throw CameraException(
         'A camera has started streaming images.',
         'startVideoRecording was called while a camera was streaming images.',
@@ -620,19 +624,19 @@ class CameraController extends ValueNotifier<CameraValue> {
       );
       value = value.copyWith(isRecordingVideo: true, isRecordingPaused: false);
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
   /// Stop recording.
   Future<void> stopVideoRecording() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'stopVideoRecording was called on uninitialized CameraController',
       );
     }
-    if (!value.isRecordingVideo) {
+    if (!value.isRecordingVideo!) {
       throw CameraException(
         'No video is recording',
         'stopVideoRecording was called when no video is recording.',
@@ -646,7 +650,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         <String, dynamic>{'textureId': _textureId},
       );
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -654,13 +658,13 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// This feature is only available on iOS and Android sdk 24+.
   Future<void> pauseVideoRecording() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'pauseVideoRecording was called on uninitialized CameraController',
       );
     }
-    if (!value.isRecordingVideo) {
+    if (!value.isRecordingVideo!) {
       throw CameraException(
         'No video is recording',
         'pauseVideoRecording was called when no video is recording.',
@@ -673,7 +677,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         <String, dynamic>{'textureId': _textureId},
       );
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -681,13 +685,13 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// This feature is only available on iOS and Android sdk 24+.
   Future<void> resumeVideoRecording() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'resumeVideoRecording was called on uninitialized CameraController',
       );
     }
-    if (!value.isRecordingVideo) {
+    if (!value.isRecordingVideo!) {
       throw CameraException(
         'No video is recording',
         'resumeVideoRecording was called when no video is recording.',
@@ -700,7 +704,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         <String, dynamic>{'textureId': _textureId},
       );
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -710,27 +714,27 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// Throws a [CameraException] if the capture fails.
   Future<void> startVideoRecordingAndStreaming(String filePath, String url,
-      {int bitrate = 1200 * 1024, bool androidUseOpenGL}) async {
-    if (!value.isInitialized || _isDisposed) {
+      {int bitrate = 1200 * 1024, bool? androidUseOpenGL}) async {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'startVideoStreaming was called on uninitialized CameraController',
       );
     }
 
-    if (value.isRecordingVideo) {
+    if (value.isRecordingVideo!) {
       throw CameraException(
         'A video recording is already started.',
         'startVideoStreaming was called when a recording is already started.',
       );
     }
-    if (value.isStreamingVideoRtmp) {
+    if (value.isStreamingVideoRtmp!) {
       throw CameraException(
         'A video streaming is already started.',
         'startVideoStreaming was called when a recording is already started.',
       );
     }
-    if (value.isStreamingImages) {
+    if (value.isStreamingImages!) {
       throw CameraException(
         'A camera has started streaming images.',
         'startVideoStreaming was called while a camera was streaming images.',
@@ -755,7 +759,7 @@ class CameraController extends ValueNotifier<CameraValue> {
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -765,26 +769,26 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// Throws a [CameraException] if the capture fails.
   Future<void> startVideoStreaming(String url,
-      {int bitrate = 1200 * 1024, bool androidUseOpenGL}) async {
-    if (!value.isInitialized || _isDisposed) {
+      {int bitrate = 1200 * 1024, bool? androidUseOpenGL}) async {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'startVideoStreaming was called on uninitialized CameraController',
       );
     }
-    if (value.isRecordingVideo) {
+    if (value.isRecordingVideo!) {
       throw CameraException(
         'A video recording is already started.',
         'startVideoStreaming was called when a recording is already started.',
       );
     }
-    if (value.isStreamingVideoRtmp) {
+    if (value.isStreamingVideoRtmp!) {
       throw CameraException(
         'A video streaming is already started.',
         'startVideoStreaming was called when a recording is already started.',
       );
     }
-    if (value.isStreamingImages) {
+    if (value.isStreamingImages!) {
       throw CameraException(
         'A camera has started streaming images.',
         'startVideoStreaming was called while a camera was streaming images.',
@@ -801,19 +805,19 @@ class CameraController extends ValueNotifier<CameraValue> {
       value =
           value.copyWith(isStreamingVideoRtmp: true, isStreamingPaused: false);
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
   /// Stop streaming.
   Future<void> stopVideoStreaming() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'stopVideoStreaming was called on uninitialized CameraController',
       );
     }
-    if (!value.isStreamingVideoRtmp) {
+    if (!value.isStreamingVideoRtmp!) {
       throw CameraException(
         'No video is recording',
         'stopVideoStreaming was called when no video is streaming.',
@@ -829,13 +833,13 @@ class CameraController extends ValueNotifier<CameraValue> {
       );
     } on PlatformException catch (e) {
       print("GOt exception " + e.toString());
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
   /// Stop streaming.
   Future<void> stopEverything() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'stopVideoStreaming was called on uninitialized CameraController',
@@ -843,7 +847,7 @@ class CameraController extends ValueNotifier<CameraValue> {
     }
     try {
       value = value.copyWith(isStreamingVideoRtmp: false);
-      if (value.isRecordingVideo || value.isStreamingVideoRtmp) {
+      if (value.isRecordingVideo! || value.isStreamingVideoRtmp!) {
         value = value.copyWith(
             isRecordingVideo: false, isStreamingVideoRtmp: false);
         await _channel.invokeMethod<void>(
@@ -851,12 +855,12 @@ class CameraController extends ValueNotifier<CameraValue> {
           <String, dynamic>{'textureId': _textureId},
         );
       }
-      if (value.isStreamingImages) {
+      if (value.isStreamingImages!) {
         value = value.copyWith(isStreamingImages: false);
         await _channel.invokeMethod<void>('stopImageStream');
       }
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -864,13 +868,13 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// This feature is only available on iOS and Android sdk 24+.
   Future<void> pauseVideoStreaming() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'pauseVideoStreaming was called on uninitialized CameraController',
       );
     }
-    if (!value.isStreamingVideoRtmp) {
+    if (!value.isStreamingVideoRtmp!) {
       throw CameraException(
         'No video is recording',
         'pauseVideoStreaming was called when no video is streaming.',
@@ -883,7 +887,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         <String, dynamic>{'textureId': _textureId},
       );
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
@@ -891,13 +895,13 @@ class CameraController extends ValueNotifier<CameraValue> {
   ///
   /// This feature is only available on iOS and Android sdk 24+.
   Future<void> resumeVideoStreaming() async {
-    if (!value.isInitialized || _isDisposed) {
+    if (!value.isInitialized! || _isDisposed) {
       throw CameraException(
         'Uninitialized CameraController',
         'resumeVideoStreaming was called on uninitialized CameraController',
       );
     }
-    if (!value.isStreamingVideoRtmp) {
+    if (!value.isStreamingVideoRtmp!) {
       throw CameraException(
         'No video is recording',
         'resumeVideoStreaming was called when no video is streaming.',
@@ -910,7 +914,7 @@ class CameraController extends ValueNotifier<CameraValue> {
         <String, dynamic>{'textureId': _textureId},
       );
     } on PlatformException catch (e) {
-      throw CameraException(e.code, e.message);
+      throw CameraException(e.code, e.message!);
     }
   }
 
