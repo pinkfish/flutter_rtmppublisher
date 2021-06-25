@@ -10,9 +10,8 @@ rtmp streaming as part of the system.  It works on android and iOS
 (but not web).
 
 This means the API Is exactly the same as the camera and 
-installation requirements are the same.  The different is there
-is an extra API that is startStreaming(url) that takes an rtmp
-url and starts streaming to that specific url.
+installation requirements are the same.  The difference exists in an extra API that is startStreaming(URL), it takes an RTMP
+URL and starts streaming to that specific URL.
 
 For android I use [rtmp-rtsp-stream-client-java](https://github.com/pedroSG94/rtmp-rtsp-stream-client-java) 
 and for iOS I use 
