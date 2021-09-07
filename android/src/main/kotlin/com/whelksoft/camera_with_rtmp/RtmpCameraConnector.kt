@@ -30,23 +30,23 @@ import com.pedro.rtplibrary.view.GlInterface
 import com.pedro.rtplibrary.view.LightOpenGlView
 import com.pedro.rtplibrary.view.OffScreenGlThread
 import com.pedro.rtplibrary.view.OpenGlView
-import net.ossrs.rtmp.ConnectCheckerRtmp
-import net.ossrs.rtmp.SrsFlvMuxer
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
 import android.util.Log
 import android.util.SparseIntArray
+import com.pedro.rtmp.flv.video.ProfileIop
+import com.pedro.rtmp.rtmp.RtmpClient
+import com.pedro.rtmp.utils.ConnectCheckerRtmp
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPortrait: Boolean, val connectChecker: ConnectCheckerRtmp) :
-        GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback,
-        RecordController.Listener,  ConnectCheckerRtmp {
+        GetAacData, GetVideoData, GetMicrophoneData, FpsListener.Callback, RecordController.Listener, ConnectCheckerRtmp {
     private var videoEncoder: VideoEncoder? = null
     private var microphoneManager: MicrophoneManager
     private var audioEncoder: AudioEncoder
-    private var srsFlvMuxer: SrsFlvMuxer
+    private var rtmpClient: RtmpClient
     private var curFps: Int
     private var pausedStreaming: Boolean = false
     private var pausedRecording: Boolean = false
@@ -71,7 +71,7 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
     init {
         microphoneManager = MicrophoneManager(this)
         audioEncoder = AudioEncoder(this)
-        srsFlvMuxer = SrsFlvMuxer(this)
+        rtmpClient = RtmpClient(this)
         fpsListener.setCallback(this)
         curFps = 0
         if (useOpenGL) {
@@ -102,8 +102,8 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
      *
      * @param profileIop Could be ProfileIop.BASELINE or ProfileIop.CONSTRAINED
      */
-    fun setProfileIop(profileIop: Byte) {
-        srsFlvMuxer.setProfileIop(profileIop)
+    fun setProfileIop(profileIop: ProfileIop) {
+        rtmpClient.setProfileIop(profileIop)
     }
 
 
@@ -256,10 +256,10 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
         isStreaming = false
         stopStreamRtp()
         if (!isRecording) {
-           microphoneManager!!.stop()
-           videoEncoder!!.stop()
-           audioEncoder!!.stop()
-           glInterface.stop()
+            microphoneManager!!.stop()
+            videoEncoder!!.stop()
+            audioEncoder!!.stop()
+            glInterface.stop()
         }
     }
 
@@ -291,44 +291,44 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
     //cache control
     @Throws(RuntimeException::class)
     fun resizeCache(newSize: Int) {
-        srsFlvMuxer.resizeFlvTagCache(newSize)
+        rtmpClient.resizeCache(newSize)
 
     }
 
     val cacheSize: Int
-        get() = srsFlvMuxer.flvTagCacheSize
+        get() = rtmpClient.cacheSize
 
     val sentAudioFrames: Long
-        get() = srsFlvMuxer.sentAudioFrames
+        get() = rtmpClient.sentAudioFrames
 
 
     val sentVideoFrames: Long
-        get() = srsFlvMuxer.sentVideoFrames
+        get() = rtmpClient.sentVideoFrames
 
 
     val droppedAudioFrames: Long
         get() =
-            srsFlvMuxer.droppedAudioFrames
+            rtmpClient.droppedAudioFrames
 
 
     val droppedVideoFrames: Long
         get() =
-            srsFlvMuxer.droppedVideoFrames
+            rtmpClient.droppedVideoFrames
 
     fun resetSentAudioFrames() {
-        srsFlvMuxer.resetSentAudioFrames()
+        rtmpClient.resetSentAudioFrames()
     }
 
     fun resetSentVideoFrames() {
-        srsFlvMuxer.resetSentVideoFrames()
+        rtmpClient.resetSentVideoFrames()
     }
 
     fun resetDroppedAudioFrames() {
-        srsFlvMuxer.resetDroppedAudioFrames()
+        rtmpClient.resetDroppedAudioFrames()
     }
 
     fun resetDroppedVideoFrames() {
-        srsFlvMuxer.resetDroppedVideoFrames()
+        rtmpClient.resetDroppedVideoFrames()
     }
 
     /**
@@ -339,37 +339,36 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
      */
 
     fun setAuthorization(user: String, password: String) {
-        srsFlvMuxer.setAuthorization(user, password)
+        rtmpClient.setAuthorization(user, password)
     }
 
     fun prepareAudioRtp(isStereo: Boolean, sampleRate: Int) {
-        srsFlvMuxer.setIsStereo(isStereo)
-        srsFlvMuxer.setSampleRate(sampleRate)
+        rtmpClient.setAudioInfo(sampleRate, isStereo)
     }
 
     fun startStreamRtp(url: String) {
         if (videoEncoder!!.rotation == 90 || videoEncoder!!.rotation == 270) {
-            srsFlvMuxer.setVideoResolution(videoEncoder!!.height, videoEncoder!!.width)
+            rtmpClient.setVideoResolution(videoEncoder!!.height, videoEncoder!!.width)
         } else {
-            srsFlvMuxer.setVideoResolution(videoEncoder!!.width, videoEncoder!!.height)
+            rtmpClient.setVideoResolution(videoEncoder!!.width, videoEncoder!!.height)
         }
-        srsFlvMuxer.start(url)
+        rtmpClient.connect(url)
     }
 
     fun stopStreamRtp() {
-        srsFlvMuxer.stop()
+        rtmpClient.disconnect()
     }
 
     fun setReTries(reTries: Int) {
-        srsFlvMuxer.setReTries(reTries)
+        rtmpClient.setReTries(reTries)
     }
 
     fun shouldRetry(reason: String): Boolean {
-        return srsFlvMuxer.shouldRetry(reason)
+        return rtmpClient.shouldRetry(reason)
     }
 
     public fun reConnect(delay: Long) {
-        srsFlvMuxer.reConnect(delay)
+        rtmpClient.reConnect(delay)
     }
 
     /**
@@ -441,10 +440,6 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
         if (isRecording && !pausedRecording) recordController.recordAudio(aacBuffer, info)
     }
 
-    override fun onSpsPps(sps: ByteBuffer, pps: ByteBuffer) {
-        if (isStreaming && !pausedStreaming) onSpsPpsVpsRtp(sps, pps, null)
-    }
-
     override fun onSpsPpsVps(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer) {
         if (isStreaming && !pausedStreaming) onSpsPpsVpsRtp(sps, pps, vps)
     }
@@ -466,18 +461,18 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
     }
 
     fun getAacDataRtp(aacBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        srsFlvMuxer.sendAudio(aacBuffer, info)
+        rtmpClient.sendAudio(aacBuffer, info)
     }
 
     fun onSpsPpsVpsRtp(sps: ByteBuffer, pps: ByteBuffer, vps: ByteBuffer?) {
-        srsFlvMuxer.setSpsPPs(sps, pps)
+        rtmpClient.setVideoInfo(sps, pps, vps)
     }
 
     fun getH264DataRtp(h264Buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        srsFlvMuxer.sendVideo(h264Buffer, info)
+        rtmpClient.sendVideo(h264Buffer, info)
     }
 
-   override fun  onFps(fps: Int) {
+    override fun onFps(fps: Int) {
         curFps = fps
     }
 
@@ -512,6 +507,10 @@ class RtmpCameraConnector(val context: Context, val useOpenGL: Boolean, val isPo
 
     override fun onAuthSuccessRtmp() {
         connectChecker.onAuthSuccessRtmp()
+    }
+
+    override fun onConnectionStartedRtmp(rtmpUrl: String) {
+        TODO("Not yet implemented")
     }
 
     companion object {

@@ -1,4 +1,10 @@
-include ':app', ':library'
+include ':app', ':library', ':rtmp', ':encoder', ':rtsp', ':rtplibrary'
+
+project(":rtplibrary").projectDir = file(rootProject.projectDir.absolutePath + "/../../rtmp-rtsp-stream-client-java/rtplibrary")
+project(":rtmp").projectDir = file(rootProject.projectDir.absolutePath + "/../../rtmp-rtsp-stream-client-java/rtmp")
+project(":rtsp").projectDir = file(rootProject.projectDir.absolutePath + "/../../rtmp-rtsp-stream-client-java/rtsp")
+project(":encoder").projectDir = file(rootProject.projectDir.absolutePath + "/../../rtmp-rtsp-stream-client-java/encoder")
+
 
 def flutterProjectRoot = rootProject.projectDir.parentFile.toPath()
 
