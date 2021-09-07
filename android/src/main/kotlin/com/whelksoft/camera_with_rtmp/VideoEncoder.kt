@@ -219,7 +219,7 @@ class VideoEncoder(
             getVideoData.onSpsPpsVps(byteBufferList!![1], byteBufferList[2], byteBufferList[0])
             //H264
         } else {
-            getVideoData.onSpsPps(mediaFormat.getByteBuffer("csd-0"), mediaFormat.getByteBuffer("csd-1"))
+            getVideoData.onSpsPpsVps(mediaFormat.getByteBuffer("csd-0"), mediaFormat.getByteBuffer("csd-1"),null)
         }
     }
 
@@ -363,7 +363,7 @@ class VideoEncoder(
             if (!spsPpsSetted) {
                 val buffers: Pair<ByteBuffer, ByteBuffer>? = decodeSpsPpsFromBuffer(byteBuffer.duplicate(), bufferInfo.size)
                 if (buffers != null) {
-                    getVideoData.onSpsPps(buffers.first, buffers.second)
+                    getVideoData.onSpsPpsVps(buffers.first, buffers.second, null)
                     spsPpsSetted = true
                 }
             }

@@ -196,7 +196,7 @@ class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {
     let maxBitrate: UInt32 = 2500 * 1024
     let incrementBitrate: UInt32 = 512 * 1024
     
-    func didPublishSufficientBW(_ stream: RTMPStream, withConnection: RTMPConnection) {
+    func rtmpStream(_ stream: RTMPStream,  didPublishSufficientBW connection: RTMPConnection) {
         guard let videoBitrate = stream.videoSettings[.bitrate] as? UInt32 else { return }
         
         var newVideoBitrate = videoBitrate + incrementBitrate
@@ -209,7 +209,7 @@ class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {
     
     
     // detect upload insufficent BandWidth
-    func didPublishInsufficientBW(_ stream:RTMPStream, withConnection:RTMPConnection) {
+    func rtmpStream(_ stream:RTMPStream, didPublishInsufficientBW connection:RTMPConnection) {
         guard let videoBitrate = stream.videoSettings[.bitrate] as? UInt32 else { return }
         
         var         newVideoBitrate = UInt32(videoBitrate / 2)
@@ -220,6 +220,6 @@ class MyRTMPStreamQoSDelagate: RTMPStreamDelegate {
         stream.videoSettings[.bitrate] = newVideoBitrate
     }
     
-    func clear() {
+    func rtmpStreamDidClear(_ stream:RTMPStream) {
     }
 }

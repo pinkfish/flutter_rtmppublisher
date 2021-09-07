@@ -1,3 +1,6 @@
 [submodule "rtmp-rtsp-stream-client-java"]
 	path = rtmp-rtsp-stream-client-java
 	url = git@github.com:Tockto/rtmp-rtsp-stream-client-java.git
+[submodule "HaishinKit.swift"]
+	path = HaishinKit.swift
+	url = git@github.com:Tockto/HaishinKit.swift.git

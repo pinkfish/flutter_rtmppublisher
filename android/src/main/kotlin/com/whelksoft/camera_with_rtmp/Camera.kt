@@ -17,12 +17,12 @@ import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
+import com.pedro.rtmp.utils.ConnectCheckerRtmp
 import com.pedro.rtplibrary.util.BitrateAdapter
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.EventChannel.EventSink
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry.SurfaceTextureEntry
-import net.ossrs.rtmp.ConnectCheckerRtmp
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -745,6 +745,10 @@ class Camera(
         activity!!.runOnUiThread {
             dartMessenger.send(DartMessenger.EventType.RTMP_STOPPED, "Disconnected")
         }
+    }
+
+    override fun onConnectionStartedRtmp(rtmpUrl: String) {
+        TODO("Not yet implemented")
     }
 
     companion object {
