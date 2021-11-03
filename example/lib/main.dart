@@ -47,7 +47,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   bool enableAudio = true;
   bool useOpenGL = true;
   TextEditingController _textFieldController = TextEditingController(
-      text: "rtmp://34.70.40.166:1935/LiveApp/815794454132232781694481");
+      text: "rtmp://34.70.40.166:1935/LiveApp/544303451528289906710851");
 
   Timer _timer;
 
@@ -299,7 +299,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   String timestamp() => DateTime.now().millisecondsSinceEpoch.toString();
 
   void showInSnackBar(String message) {
-    _scaffoldKey.currentState.showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void onNewCameraSelected(CameraDescription cameraDescription) async {
@@ -508,14 +508,14 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
               onChanged: (String str) => result = str,
             ),
             actions: <Widget>[
-              new FlatButton(
+              new TextButton(
                 child: new Text(
                     MaterialLocalizations.of(context).cancelButtonLabel),
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
               ),
-              FlatButton(
+              TextButton(
                 child: Text(MaterialLocalizations.of(context).okButtonLabel),
                 onPressed: () {
                   Navigator.pop(context, result);

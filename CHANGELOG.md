@@ -1,3 +1,7 @@
+## 0.3.3
+
+* Update to null safety
+
 ## 0.3.2
 
 * Fix up IOS to correctly handle recording/streaming independently.

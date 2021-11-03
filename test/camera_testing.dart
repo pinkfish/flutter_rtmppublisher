@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:camera_with_rtmp/new/common/camera_channel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-
-import 'common/camera_channel.dart';
 
 @visibleForTesting
 class CameraTesting {

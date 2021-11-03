@@ -13,26 +13,22 @@ class CameraChannel {
   static final MethodChannel channel = const MethodChannel(
     'flutter.plugins.io/camera_with_rtmp',
   )..setMethodCallHandler(
-      (MethodCall call) async {
-        assert(call.method == 'handleCallback');
+        (MethodCall call) async {
+      assert(call.method == 'handleCallback');
 
-        final int handle = call.arguments['handle'];
-        if (callbacks[handle] != null) callbacks[handle](call.arguments);
-      },
-    );
+      final int handle = call.arguments['handle'];
+      if (callbacks[handle] != null) callbacks[handle](call.arguments);
+    },
+  );
 
   static int nextHandle = 0;
 
   static void registerCallback(int handle, CameraCallback callback) {
-    assert(handle != null);
-    assert(CameraCallback != null);
-
     assert(!callbacks.containsKey(handle));
     callbacks[handle] = callback;
   }
 
   static void unregisterCallback(int handle) {
-    assert(handle != null);
     callbacks.remove(handle);
   }
 }

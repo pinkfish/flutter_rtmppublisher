@@ -2,7 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/example/ios/.symlinks/plugins/camera_with_rtmp" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/example/ios/.symlinks/plugins/rtmppublisher" vcs="Git" />
   </component>
 </project>
